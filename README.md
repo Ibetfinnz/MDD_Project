@@ -28,7 +28,7 @@
 ### 2. ขั้นตอนการติดตั้ง
 1. **Clone Repository:**
    ```bash
-   git clone <URL_ของ_Github_คุณ>
+   git clone (https://github.com/Ibetfinnz/MDD_Project.git)
    cd Project_MDD
 
 ```
