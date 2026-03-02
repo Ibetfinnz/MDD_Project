@@ -89,6 +89,3 @@ docker-compose up --build
 * **Database:** SQLite (GORM)
 * **Containerization:** Docker & Docker Compose
 * **Gateway:** Reverse Proxy with Go Standard Library
-
-```
-
