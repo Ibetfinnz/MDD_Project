@@ -1,8 +1,4 @@
 # MDD_Project
-เข้าใจแล้วครับ ถ้าเน้นเฉพาะส่วน **Backend Microservices** ทั้งหมด (User, Room, Meter, Bill และ Gateway) เพื่อให้คนที่มาโหลดโปรเจกต์ไปสามารถรันผ่าน Docker และทดสอบผ่าน Postman ได้ทันที
-
-นี่คือไฟล์ `README.md` ฉบับละเอียดที่ตัดส่วน Frontend ออกตามที่คุณต้องการครับ:
-
 ---
 
 ```markdown
