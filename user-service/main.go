@@ -11,71 +11,104 @@ import (
 
 type User struct {
 	gorm.Model
-	Name     string `json:"name"`
-	Email    string `json:"email"`
+	Username string `json:"username" gorm:"uniqueIndex"`
 	Password string `json:"password"`
 	Role     string `json:"role"`
 }
 
 var db *gorm.DB
+var currentRole string // ✅ เก็บ role ล่าสุด
 
-// 2. ฟังก์ชันเชื่อมต่อฐานข้อมูล
+// ===== Connect DB =====
 func connectDB() {
 	var err error
 	db, err = gorm.Open(sqlite.Open("user.db"), &gorm.Config{})
 	if err != nil {
-		log.Fatal("❌ Failed to connect to database: \n", err)
+		log.Fatal("DB connect error:", err)
 	}
-	log.Println("✅ Database connected successfully!")
 
 	db.AutoMigrate(&User{})
-	log.Println("✅ Database Migrated!")
+
+	// seed user
+	db.FirstOrCreate(&User{}, User{
+		Username: "admin",
+		Password: "1234",
+		Role:     "admin",
+	})
+
+	db.FirstOrCreate(&User{}, User{
+		Username: "tenant1",
+		Password: "1234",
+		Role:     "tenant",
+	})
 }
 
-// 3. ฟังก์ชันหลัก (Main)
 func main() {
 	connectDB()
 
 	app := fiber.New()
 
-	// เปิดใช้งาน CORS ให้ Frontend (React) เรียกใช้ API ได้
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
 		AllowHeaders: "Origin, Content-Type, Accept",
 	}))
 
-	// --- Route 1: เช็คสถานะ ---
+	// --- Service Check ---
 	app.Get("/", func(c *fiber.Ctx) error {
-		return c.SendString("🟢 User Service is up and running!")
+		return c.SendString("User Service Running")
 	})
 
-	// --- Route 2: ดึงข้อมูล User ทั้งหมด ---
+	// --- Get All Users ---
 	app.Get("/users", func(c *fiber.Ctx) error {
 		var users []User
-		db.Find(&users)
+		if err := db.Select("username, role").Find(&users).Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch users"})
+		}
 		return c.JSON(users)
 	})
 
-	// --- Route 3: สร้าง User ใหม่ (ไม่เข้ารหัสผ่าน) ---
-	app.Post("/users", func(c *fiber.Ctx) error {
-		user := new(User)
-
-		// 1. รับข้อมูล JSON จาก Request
-		if err := c.BodyParser(user); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "รูปแบบข้อมูลไม่ถูกต้อง"})
+	// ===== LOGIN =====
+	app.Post("/login", func(c *fiber.Ctx) error {
+		var input User
+		if err := c.BodyParser(&input); err != nil {
+			return c.Status(400).JSON(fiber.Map{"error": "Invalid format"})
 		}
 
-		// 2. ป้องกันไม่ให้ส่งรหัสผ่านว่างๆ มา
-		if user.Password == "" {
-			return c.Status(400).JSON(fiber.Map{"error": "กรุณาระบุรหัสผ่าน"})
+		var user User
+		if err := db.Where("username = ?", input.Username).First(&user).Error; err != nil {
+			return c.Status(401).JSON(fiber.Map{"error": "Invalid username or password"})
 		}
 
-		// 3. บันทึกลง Database ทันที
-		db.Create(&user)
+		if user.Password != input.Password {
+			return c.Status(401).JSON(fiber.Map{"error": "Invalid username or password"})
+		}
 
-		return c.Status(201).JSON(user)
+		// ✅ เก็บ role ล่าสุด
+		currentRole = user.Role
+
+		return c.JSON(fiber.Map{
+			"message": "Login successful",
+			"role":    currentRole,
+		})
 	})
 
-	log.Println("🚀 Starting User Service on port 8081...")
+	// ===== LOGOUT =====
+	app.Post("/logout", func(c *fiber.Ctx) error {
+		currentRole = ""
+		return c.JSON(fiber.Map{"message": "Logged out"})
+	})
+
+	// ===== CHECK ROLE (Service อื่นเรียกมา) =====
+	app.Get("/check-role", func(c *fiber.Ctx) error {
+		if currentRole == "" {
+			return c.Status(401).JSON(fiber.Map{"error": "No user logged in"})
+		}
+
+		return c.JSON(fiber.Map{
+			"role": currentRole,
+		})
+	})
+
+	log.Println("Running on :8081")
 	log.Fatal(app.Listen(":8081"))
 }

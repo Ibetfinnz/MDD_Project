@@ -3,34 +3,34 @@ version: '3.8'
 services:
   # 1. User Service
   user-service:
-    build: /user-service  # ชี้ไปที่โฟลเดอร์ที่มี Dockerfile
+    build: ./user-service
     container_name: mdd_user_service
     ports:
       - "8081:8081"                # ผูกพอร์ต เครื่องเรา:พอร์ตในDocker
 
   # 2. Room Service
   room-service:
-    build: /room-service
+    build: ./room-service
     container_name: mdd_room_service
     ports:
       - "8082:8082"
   # 3. Meter Service
   meter-service:
-    build: /meter-service  # ชี้ไปที่โฟลเดอร์ที่มี Dockerfile
+    build: ./meter-service
     container_name: mdd_meter-service
     ports:
       - "8083:8083"                # ผูกพอร์ต เครื่องเรา:พอร์ตในDocker
 
   # 4. bill-service
   bill-service:
-    build: /bill-service
+    build: ./bill-service
     container_name: mdd_bill-service
     ports:
       - "8084:8084"
 
   # 5. Gateway Service
   gateway-service:
-    build: /gateway-service
+    build: ./gateway-service
     container_name: mdd_gateway_service
     ports:
       - "8080:8080"

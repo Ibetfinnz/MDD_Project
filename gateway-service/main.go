@@ -26,7 +26,10 @@ func enableCORS(next http.Handler) http.Handler {
 }
 
 func setupProxy(target string) http.Handler {
-	url, _ := url.Parse(target)
+	url, err := url.Parse(target)
+	if err != nil {
+		log.Fatalf("Invalid target URL: %v", err)
+	}
 	proxy := httputil.NewSingleHostReverseProxy(url)
 	return proxy
 }
