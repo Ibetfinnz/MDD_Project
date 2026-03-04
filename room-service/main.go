@@ -100,9 +100,7 @@ func main() {
 	// 3. ตั้งค่า CORS (สำคัญเพื่อให้เชื่อมต่อกับ Gateway/Frontend ได้)
 	r.Use(cors.Default())
 
-	roomRoute := r.Group("/rooms")
-{
-	roomRoute.GET("/", func(c *gin.Context) {
+	r.GET("/rooms", func(c *gin.Context) {
 
 		_, err := getCurrentUser()
 		if err != nil {
@@ -115,7 +113,7 @@ func main() {
 		c.JSON(http.StatusOK, rooms)
 	})
 
-	roomRoute.GET("/:id", func(c *gin.Context) {
+	r.GET("/rooms/:id", func(c *gin.Context) {
 
 		_, err := getCurrentUser()
 		if err != nil {
@@ -133,7 +131,7 @@ func main() {
 		c.JSON(http.StatusOK, room)
 	})
 
-	roomRoute.POST("/", func(c *gin.Context) {
+	r.POST("/rooms", func(c *gin.Context) {
 
 		user, err := getCurrentUser()
 		if err != nil || user.Role != "admin" {
@@ -151,7 +149,7 @@ func main() {
 		c.JSON(http.StatusCreated, room)
 	})
 
-	roomRoute.PATCH("/:id", func(c *gin.Context) {
+	r.PATCH("/rooms/:id", func(c *gin.Context) {
 
 		user, err := getCurrentUser()
 		if err != nil || user.Role != "admin" {
@@ -175,7 +173,7 @@ func main() {
 		})
 	})
 
-	roomRoute.POST("/:id/tenant", func(c *gin.Context) {
+	r.POST("/rooms/:id/tenant", func(c *gin.Context) {
 
 		user, err := getCurrentUser()
 		if err != nil || user.Role != "admin" {
@@ -205,7 +203,6 @@ func main() {
 			"data":    room,
 		})
 	})
-}
 
 	log.Println("🚀 Room Service is running on port 8082...")
 	r.Run(":8082")

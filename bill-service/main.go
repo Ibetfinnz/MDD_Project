@@ -152,17 +152,15 @@ func main() {
 	r := gin.Default()
 	r.Use(cors.Default())
 
-	billRoute := r.Group("/Bill")
-	{
-		// 🆕 GET /Bill/ = ดูบิลทั้งหมดของทุกห้อง (เพิ่มอันนี้ครับ)
-		billRoute.GET("/", func(c *gin.Context) {
+	// 🆕 GET /Bill = ดูบิลทั้งหมดของทุกห้อง
+	r.GET("/Bill", func(c *gin.Context) {
 			var bills []Bill
 			db.Find(&bills)
 			c.JSON(http.StatusOK, bills)
 		})
 
-		// GET /Bill/:room_id = ดูบิลล่าสุดของห้องนั้น
-		billRoute.GET("/:room_id", func(c *gin.Context) {
+	// GET /Bill/:room_id = ดูบิลล่าสุดของห้องนั้น
+	r.GET("/Bill/:room_id", func(c *gin.Context) {
 			roomID := c.Param("room_id")
 			var bill Bill
 			if err := db.Where("room_id = ?", roomID).Order("created_at desc").First(&bill).Error; err != nil {
@@ -172,8 +170,8 @@ func main() {
 			c.JSON(http.StatusOK, bill)
 		})
 
-		// POST /Bill/:room_id = สร้างบิลค่าเช่าใหม่
-		billRoute.POST("/:room_id", func(c *gin.Context) {
+	// POST /Bill/:room_id = สร้างบิลค่าเช่าใหม่
+	r.POST("/Bill/:room_id", func(c *gin.Context) {
 			roomID := c.Param("room_id")
 			var bill Bill
 			if err := c.ShouldBindJSON(&bill); err != nil {
@@ -218,8 +216,8 @@ func main() {
 			c.JSON(http.StatusCreated, bill)
 		})
 
-		// PATCH /Bill/:room_id = แก้ไขสถานะการจ่ายเงิน หรือยอดเงิน
-		billRoute.PATCH("/:room_id", func(c *gin.Context) {
+	// PATCH /Bill/:room_id = แก้ไขสถานะการจ่ายเงิน หรือยอดเงิน
+	r.PATCH("/Bill/:room_id", func(c *gin.Context) {
 			roomID := c.Param("room_id")
 			var bill Bill
 			if err := db.Where("room_id = ?", roomID).Order("created_at desc").First(&bill).Error; err != nil {
@@ -233,7 +231,6 @@ func main() {
 
 			c.JSON(http.StatusOK, gin.H{"message": "แก้ไขบิลค่าเช่าสำเร็จ", "data": bill})
 		})
-	}
 
 	log.Println("🚀 Bill Service is running on port 8084...")
 	r.Run(":8084")

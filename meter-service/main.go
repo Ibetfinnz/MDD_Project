@@ -43,24 +43,22 @@ func main() {
 	r := gin.Default()
 	r.Use(cors.Default())
 
-	meterRoute := r.Group("/meter")
-	{
-		// --- WATER METER ---
-		// 🆕 ดูประวัติการจดมิเตอร์น้ำทั้งหมด
-		meterRoute.GET("/water", func(c *gin.Context) {
+	// --- WATER METER ---
+	// 🆕 ดูประวัติการจดมิเตอร์น้ำทั้งหมด
+	r.GET("/water", func(c *gin.Context) {
 			var meters []WaterMeter
 			db.Find(&meters)
 			c.JSON(http.StatusOK, meters)
 		})
 
-		meterRoute.GET("/water/:room_id", func(c *gin.Context) {
+	r.GET("/water/:room_id", func(c *gin.Context) {
 			roomID := c.Param("room_id")
 			var meter WaterMeter
 			db.Where("room_id = ?", roomID).Order("created_at desc").First(&meter)
 			c.JSON(http.StatusOK, meter)
 		})
 
-		meterRoute.POST("/water", func(c *gin.Context) {
+	r.POST("/water", func(c *gin.Context) {
 			var meter WaterMeter
 			if err := c.ShouldBindJSON(&meter); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
@@ -71,22 +69,22 @@ func main() {
 			c.JSON(http.StatusCreated, meter)
 		})
 
-		// --- ELECTRIC METER ---
-		// 🆕 ดูประวัติการจดมิเตอร์ไฟทั้งหมด
-		meterRoute.GET("/electric", func(c *gin.Context) {
+	// --- ELECTRIC METER ---
+	// 🆕 ดูประวัติการจดมิเตอร์ไฟทั้งหมด
+	r.GET("/electric", func(c *gin.Context) {
 			var meters []ElectricMeter
 			db.Find(&meters)
 			c.JSON(http.StatusOK, meters)
 		})
 
-		meterRoute.GET("/electric/:room_id", func(c *gin.Context) {
+	r.GET("/electric/:room_id", func(c *gin.Context) {
 			roomID := c.Param("room_id")
 			var meter ElectricMeter
 			db.Where("room_id = ?", roomID).Order("created_at desc").First(&meter)
 			c.JSON(http.StatusOK, meter)
 		})
 
-		meterRoute.POST("/electric", func(c *gin.Context) {
+	r.POST("/electric", func(c *gin.Context) {
 			var meter ElectricMeter
 			if err := c.ShouldBindJSON(&meter); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
@@ -96,7 +94,6 @@ func main() {
 			db.Create(&meter)
 			c.JSON(http.StatusCreated, meter)
 		})
-	}
 
 	log.Println("🚀 Meter Service is running on port 8083...")
 	r.Run(":8083")
