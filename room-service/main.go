@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gin-contrib/cors" // ต้องรัน go get github.com/gin-contrib/cors ด้วยครับ
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
