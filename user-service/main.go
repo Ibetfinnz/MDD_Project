@@ -94,7 +94,7 @@ func main() {
 
 		c.JSON(http.StatusOK, gin.H{
 			"message": "Login successful",
-			"username"	currentUser.Username,
+			"username": currentUser.Username,
 			"role":    currentUser.Role,
 		})
 	})

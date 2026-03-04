@@ -5,10 +5,8 @@ FROM golang:alpine
 WORKDIR /app
 
 # ก๊อปปี้ไฟล์จัดการแพ็กเกจเข้ามาก่อน
-COPY go.mod go.sum ./
 
 # โหลดแพ็กเกจที่จำเป็น
-RUN go mod download
 
 # ก๊อปปี้ซอร์สโค้ดทั้งหมดเข้าไป
 COPY . .
