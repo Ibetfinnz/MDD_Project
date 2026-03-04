@@ -47,108 +47,69 @@ docker-compose up --build
 
 **สำคัญ:** ทุก Request จะต้องยิงไปที่พอร์ต `8080` (Gateway) เท่านั้น
 
-1. User Service (Auth & Identity)
-Base URL: http://localhost:8080/api/users
+เพื่อให้ข้อมูลดูเป็นระเบียบและง่ายต่อการนำไปใส่ในไฟล์ `README.md` ของโปรเจกต์บน GitHub ผมสรุปข้อมูล API ทั้งหมดในรูปแบบตารางให้ตามนี้ครับ
 
-Login (เข้าสู่ระบบ):
+---
 
-Method: POST
+## 🚀 API Documentation (Microservices via Gateway)
 
-URL: /login
+**Base URL:** `http://localhost:8080` (API Gateway)
 
-Body (JSON): ```json
-{ "username": "admin", "password": "1234" }
+### 1. User Service (`/api/users`)
 
-Check Role (ตรวจสอบสถานะปัจจุบัน):
+จัดการเรื่องการยืนยันตัวตนและการตรวจสอบสิทธิ์
 
-Method: GET
+| Feature | Method | Endpoint | Request Body (JSON) | Description |
+| --- | --- | --- | --- | --- |
+| **Login** | `POST` | `/login` | `{"Username" : "admin",Password: "1234"}, {"Username" : "tenant1",Password: "1234"}` | เข้าสู่ระบบเพื่อกำหนดสิทธิ์การใช้งาน |
+| **Check Role** | `GET` | `/check-role` | - | ตรวจสอบข้อมูล User และ Role ที่ล็อกอินอยู่ |
+| **Logout** | `POST` | `/logout` | - | ออกจากระบบ |
 
-URL: /check-role
+---
 
-Logout (ออกจากระบบ):
+### 2. Room Service (`/api/rooms`)
 
-Method: POST
+จัดการข้อมูลห้องพัก (ต้อง Login ก่อนใช้งาน)
 
-URL: /logout
+| Feature | Method | Endpoint | Request Body (JSON) | Role |
+| --- | --- | --- | --- | --- |
+| **Get All Rooms** | `GET` | `/rooms` | - | Any |
+| **Get Room Detail** | `GET` | `/rooms/:id` | - | Any |
+| **Create Room** | `POST` | `/rooms` | `{"room_number": "301", "price": 5000, "status": "Available"}` | **Admin** |
+| **Update Room** | `PATCH` | `/rooms/:id` | `{"price": 5500}` | **Admin** |
+| **Add Tenant** | `POST` | `/rooms/:id/tenant` | `{"tenant_name": "Somchai"}` | **Admin** |
 
-2. Room Service (จัดการห้องพัก)
-Base URL: http://localhost:8080/api/rooms
+---
 
-หมายเหตุ: Service นี้มีการเช็ค Role ดังนั้นคุณต้องทำการ Login ผ่าน User Service ก่อน
+### 3. Meter Service (`/api/meters`)
 
-ดูห้องพักทั้งหมด:
+บันทึกและดูประวัติการใช้ค่าน้ำ-ค่าไฟ
 
-Method: GET
+| Feature | Method | Endpoint | Request Body (JSON) | Description |
+| --- | --- | --- | --- | --- |
+| **Record Water** | `POST` | `/meter/water` | `{"room_id": "101", "unit": 15.5}` | บันทึกมิเตอร์น้ำล่าสุด |
+| **Record Electric** | `POST` | `/meter/electric` | `{"room_id": "101", "unit": 120.0}` | บันทึกมิเตอร์ไฟล่าสุด |
+| **Water History** | `GET` | `/meter/water/:room_id` | - | ดูหน่วยน้ำล่าสุดของห้องนั้น |
+| **Electric History** | `GET` | `/meter/electric/:room_id` | - | ดูหน่วยไฟล่าสุดของห้องนั้น |
 
-URL: /rooms
+---
 
-เพิ่มห้องใหม่ (เฉพาะ Admin):
+### 4. Bill Service (`/api/bills`)
 
-Method: POST
+สรุปค่าใช้จ่ายประจำเดือน (ดึงข้อมูลจาก Room และ Meter Service)
 
-URL: /rooms
+| Feature | Method | Endpoint | Request Body (JSON) | Description |
+| --- | --- | --- | --- | --- |
+| **Create Bill** | `POST` | `/Bill/:room_id` | `{"status": "Unpaid"}` | ระบบจะคำนวณเงินรวมให้อัตโนมัติ |
+| **Get Latest Bill** | `GET` | `/Bill/:room_id` | - | ดูข้อมูลบิลล่าสุดของห้อง |
+| **Get All Bills** | `GET` | `/Bill/` | - | ดูรายการบิลทั้งหมดที่มีในระบบ |
+| **Update Status** | `PATCH` | `/Bill/:room_id` | `{"status": "Paid"}` | อัปเดตสถานะการจ่ายเงิน |
 
-Body (JSON): ```json
-{ "room_number": "301", "price": 5000, "status": "Available" }
+---
 
-เพิ่มผู้เช่าเข้าห้อง (เฉพาะ Admin):
+> **Tip สำหรับ GitHub:** คุณสามารถก๊อปปี้ Markdown ด้านบนไปวางในไฟล์ `README.md` ได้เลยครับ ตารางจะแสดงผลอย่างสวยงามบนหน้าโปรเจกต์ของคุณ
 
-Method: POST
-
-URL: /:id/tenant (เช่น /1/tenant)
-
-Body (JSON): { "tenant_name": "Somchai" }
-
-3. Meter Service (บันทึกมิเตอร์น้ำ-ไฟ)
-Base URL: http://localhost:8080/api/meters
-
-จดมิเตอร์น้ำ:
-
-Method: POST
-
-URL: /meter/water
-
-Body (JSON): { "room_id": "101", "unit": 15.5 }
-
-จดมิเตอร์ไฟ:
-
-Method: POST
-
-URL: /meter/electric
-
-Body (JSON): { "room_id": "101", "unit": 120.0 }
-
-ดูประวัติมิเตอร์ไฟ (รายห้อง):
-
-Method: GET
-
-URL: /meter/electric/101
-
-4. Bill Service (สรุปค่าใช้จ่าย)
-Base URL: http://localhost:8080/api/bills
-
-สร้างบิล (คำนวณอัตโนมัติ): * Service จะไปดึงราคาห้องจาก Room Service และหน่วยน้ำไฟจาก Meter Service มาคำนวณให้เอง
-
-Method: POST
-
-URL: /Bill/:room_id (เช่น /Bill/101)
-
-Body (JSON): {"status": "Unpaid"}  
-
-ดูบิลล่าสุดของห้อง:
-
-Method: GET
-
-URL: /Bill/101
-
-อัปเดตสถานะการจ่ายเงิน:
-
-Method: PATCH
-
-URL: /Bill/101
-
-Body (JSON): { "status": "Paid" }
-
+มีส่วนไหนของตารางที่อยากให้เพิ่มรายละเอียด เช่น **HTTP Status Code** (200, 201, 401) ไหมครับ?
 ## 🛠️ Technology Stack
 
 * **Language:** Go 1.x
