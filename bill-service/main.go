@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -20,6 +23,115 @@ type Bill struct {
 	Total         float64 `json:"total"`
 	Month         string  `json:"month"`
 	Status        string  `json:"status"`
+}
+
+// --------- ข้อมูลจาก service อื่น ---------
+
+type Room struct {
+	RoomNumber string  `json:"room_number"`
+	Price      float64 `json:"price"`
+	Status     string  `json:"status"`
+	TenantName string  `json:"tenant_name"`
+}
+
+type WaterMeter struct {
+	RoomID string  `json:"room_id"`
+	Unit   float64 `json:"unit"`
+	Month  string  `json:"month"`
+}
+
+type ElectricMeter struct {
+	RoomID string  `json:"room_id"`
+	Unit   float64 `json:"unit"`
+	Month  string  `json:"month"`
+}
+
+const (
+	waterRatePerUnit    = 10.0 // ปรับเรทค่าน้ำต่อหน่วยได้ตรงนี้
+	electricRatePerUnit = 5.0  // ปรับเรทค่าไฟต่อหน่วยได้ตรงนี้
+)
+
+// ดึงข้อมูลห้องจาก room-service โดยใช้ RoomNumber = roomID
+func fetchRoom(roomID string) (*Room, error) {
+	resp, err := http.Get("http://room-service:8082/rooms/")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("room-service status: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var rooms []Room
+	if err := json.Unmarshal(body, &rooms); err != nil {
+		return nil, err
+	}
+
+	for _, r := range rooms {
+		if r.RoomNumber == roomID {
+			return &r, nil
+		}
+	}
+
+	return nil, fmt.Errorf("room not found")
+}
+
+// ดึงค่าน้ำล่าสุดจาก meter-service
+func fetchLatestWater(roomID string) (*WaterMeter, error) {
+	url := fmt.Sprintf("http://meter-service:8083/meter/water/%s", roomID)
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("water meter status: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var m WaterMeter
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, err
+	}
+
+	return &m, nil
+}
+
+// ดึงค่าไฟล่าสุดจาก meter-service
+func fetchLatestElectric(roomID string) (*ElectricMeter, error) {
+	url := fmt.Sprintf("http://meter-service:8083/meter/electric/%s", roomID)
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("electric meter status: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var m ElectricMeter
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, err
+	}
+
+	return &m, nil
 }
 
 var db *gorm.DB
@@ -69,14 +181,40 @@ func main() {
 				return
 			}
 
+			// ผูก room_id ให้ชัดเจน
 			bill.RoomID = roomID
 			bill.Month = time.Now().Format("2006-01")
+
+			// --- ดึงค่าเช่าจาก room-service ---
+			if room, err := fetchRoom(roomID); err == nil {
+				bill.RentPrice = room.Price
+			} else {
+				log.Println("⚠️ fetchRoom error:", err)
+			}
+
+			// --- ดึงค่าน้ำ/ค่าไฟจาก meter-service แล้วคำนวณราคา ---
+			if water, err := fetchLatestWater(roomID); err == nil {
+				bill.WaterPrice = water.Unit * waterRatePerUnit
+			} else {
+				log.Println("⚠️ fetchLatestWater error:", err)
+			}
+
+			if electric, err := fetchLatestElectric(roomID); err == nil {
+				bill.ElectricPrice = electric.Unit * electricRatePerUnit
+			} else {
+				log.Println("⚠️ fetchLatestElectric error:", err)
+			}
+
+			// รวมยอด
 			bill.Total = bill.RentPrice + bill.WaterPrice + bill.ElectricPrice
 			if bill.Status == "" {
 				bill.Status = "Unpaid"
 			}
 
-			db.Create(&bill)
+			if err := db.Create(&bill).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "สร้างบิลไม่สำเร็จ"})
+				return
+			}
 			c.JSON(http.StatusCreated, bill)
 		})
 
