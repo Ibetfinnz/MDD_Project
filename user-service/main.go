@@ -17,7 +17,7 @@ type User struct {
 }
 
 var db *gorm.DB
-var currentRole string // เก็บ role ล่าสุด
+var currentUser *User
 
 // ===== Connect DB =====
 func connectDB() {
@@ -90,18 +90,18 @@ func main() {
 			return
 		}
 
-		// เก็บ role ล่าสุด
-		currentRole = user.Role
+		currentUser = &user
 
 		c.JSON(http.StatusOK, gin.H{
 			"message": "Login successful",
-			"role":    currentRole,
+			"username"	currentUser.Username,
+			"role":    currentUser.Role,
 		})
 	})
 
 	// ===== LOGOUT =====
 	r.POST("/logout", func(c *gin.Context) {
-		currentRole = ""
+		currentUser = nil
 		c.JSON(http.StatusOK, gin.H{
 			"message": "Logged out",
 		})
@@ -109,7 +109,7 @@ func main() {
 
 	// ===== CHECK ROLE =====
 	r.GET("/check-role", func(c *gin.Context) {
-		if currentRole == "" {
+		if currentUser == nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "No user logged in",
 			})
@@ -117,7 +117,8 @@ func main() {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"role": currentRole,
+			"username": currentUser.Username,
+			"role": currentUser.Role,
 		})
 	})
 
