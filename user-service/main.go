@@ -2,10 +2,10 @@ package main
 
 import (
 	"log"
+	"net/http"
 
 	"github.com/glebarez/sqlite"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -17,7 +17,7 @@ type User struct {
 }
 
 var db *gorm.DB
-var currentRole string // ✅ เก็บ role ล่าสุด
+var currentRole string // เก็บ role ล่าสุด
 
 // ===== Connect DB =====
 func connectDB() {
@@ -46,69 +46,81 @@ func connectDB() {
 func main() {
 	connectDB()
 
-	app := fiber.New()
-
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
-		AllowHeaders: "Origin, Content-Type, Accept",
-	}))
+	r := gin.Default()
 
 	// --- Service Check ---
-	app.Get("/", func(c *fiber.Ctx) error {
-		return c.SendString("User Service Running")
+	r.GET("/", func(c *gin.Context) {
+		c.String(http.StatusOK, "User Service Running")
 	})
 
 	// --- Get All Users ---
-	app.Get("/users", func(c *fiber.Ctx) error {
+	r.GET("/users", func(c *gin.Context) {
 		var users []User
 		if err := db.Select("username, role").Find(&users).Error; err != nil {
-			return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch users"})
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to fetch users",
+			})
+			return
 		}
-		return c.JSON(users)
+		c.JSON(http.StatusOK, users)
 	})
 
 	// ===== LOGIN =====
-	app.Post("/login", func(c *fiber.Ctx) error {
+	r.POST("/login", func(c *gin.Context) {
 		var input User
-		if err := c.BodyParser(&input); err != nil {
-			return c.Status(400).JSON(fiber.Map{"error": "Invalid format"})
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Invalid format",
+			})
+			return
 		}
 
 		var user User
 		if err := db.Where("username = ?", input.Username).First(&user).Error; err != nil {
-			return c.Status(401).JSON(fiber.Map{"error": "Invalid username or password"})
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid username or password",
+			})
+			return
 		}
 
 		if user.Password != input.Password {
-			return c.Status(401).JSON(fiber.Map{"error": "Invalid username or password"})
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid username or password",
+			})
+			return
 		}
 
-		// ✅ เก็บ role ล่าสุด
+		// เก็บ role ล่าสุด
 		currentRole = user.Role
 
-		return c.JSON(fiber.Map{
+		c.JSON(http.StatusOK, gin.H{
 			"message": "Login successful",
 			"role":    currentRole,
 		})
 	})
 
 	// ===== LOGOUT =====
-	app.Post("/logout", func(c *fiber.Ctx) error {
+	r.POST("/logout", func(c *gin.Context) {
 		currentRole = ""
-		return c.JSON(fiber.Map{"message": "Logged out"})
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Logged out",
+		})
 	})
 
-	// ===== CHECK ROLE (Service อื่นเรียกมา) =====
-	app.Get("/check-role", func(c *fiber.Ctx) error {
+	// ===== CHECK ROLE =====
+	r.GET("/check-role", func(c *gin.Context) {
 		if currentRole == "" {
-			return c.Status(401).JSON(fiber.Map{"error": "No user logged in"})
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "No user logged in",
+			})
+			return
 		}
 
-		return c.JSON(fiber.Map{
+		c.JSON(http.StatusOK, gin.H{
 			"role": currentRole,
 		})
 	})
 
 	log.Println("Running on :8081")
-	log.Fatal(app.Listen(":8081"))
+	r.Run(":8081")
 }
