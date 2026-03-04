@@ -47,40 +47,107 @@ docker-compose up --build
 
 **สำคัญ:** ทุก Request จะต้องยิงไปที่พอร์ต `8080` (Gateway) เท่านั้น
 
-### 1. User Service (จัดการผู้ใช้)
+1. User Service (Auth & Identity)
+Base URL: http://localhost:8080/api/users
 
-| Action | Method | URL | Body (JSON) |
-| --- | --- | --- | --- |
-| สร้าง User ใหม่ | `POST` | `http://localhost:8080/api/users/users` | `{"name": "admin", "email": "a@test.com", "password": "123", "role": "admin"}` |
-| ดู User ทั้งหมด | `GET` | `http://localhost:8080/api/users/users` | - |
+Login (เข้าสู่ระบบ):
 
-### 2. Room Service (จัดการห้องพัก)
+Method: POST
 
-| Action | Method | URL | Body (JSON) |
-| --- | --- | --- | --- |
-| เพิ่มห้องพักใหม่ | `POST` | `http://localhost:8080/api/rooms/rooms/` | `{"room_number": "101", "type": "VIP", "price": 5000, "status": "Available"}` |
-| ดูรายชื่อห้องทั้งหมด | `GET` | `http://localhost:8080/api/rooms/rooms/` | - |
-| ดูข้อมูลห้องราย ID | `GET` | `http://localhost:8080/api/rooms/rooms/1` | - |
-| เพิ่มผู้เช่าเข้าห้อง | `POST` | `http://localhost:8080/api/rooms/rooms/1/tenant` | `{"tenant_name": "Finnz"}` |
+URL: /login
 
-### 3. Meter Service (จดมิเตอร์น้ำ-ไฟ)
+Body (JSON): ```json
+{ "username": "admin", "password": "1234" }
 
-| Action | Method | URL | Body (JSON) |
-| --- | --- | --- | --- |
-| บันทึกมิเตอร์น้ำ | `POST` | `http://localhost:8080/api/meters/meter/water` | `{"room_id": "1", "unit": 10.5}` |
-| บันทึกมิเตอร์ไฟ | `POST` | `http://localhost:8080/api/meters/meter/electric` | `{"room_id": "1", "unit": 150}` |
-| ดูประวัติน้ำทั้งหมด | `GET` | `http://localhost:8080/api/meters/meter/water` | - |
-| ดูประวัติไฟทั้งหมด | `GET` | `http://localhost:8080/api/meters/meter/electric` | - |
+Check Role (ตรวจสอบสถานะปัจจุบัน):
 
-### 4. Bill Service (สรุปยอดบิล)
+Method: GET
 
-| Action | Method | URL | Body (JSON) |
-| --- | --- | --- | --- |
-| สร้างบิลใหม่ | `POST` | `http://localhost:8080/api/bills/Bill/1` | `{"rent_price": 5000, "water_price": 100, "electric_price": 400}` |
-| ดูบิลทั้งหมด | `GET` | `http://localhost:8080/api/bills/Bill/` | - |
-| อัปเดตสถานะการจ่ายเงิน | `PATCH` | `http://localhost:8080/api/bills/Bill/1` | `{"status": "Paid"}` |
+URL: /check-role
 
----
+Logout (ออกจากระบบ):
+
+Method: POST
+
+URL: /logout
+
+2. Room Service (จัดการห้องพัก)
+Base URL: http://localhost:8080/api/rooms
+
+หมายเหตุ: Service นี้มีการเช็ค Role ดังนั้นคุณต้องทำการ Login ผ่าน User Service ก่อน
+
+ดูห้องพักทั้งหมด:
+
+Method: GET
+
+URL: /rooms
+
+เพิ่มห้องใหม่ (เฉพาะ Admin):
+
+Method: POST
+
+URL: /rooms
+
+Body (JSON): ```json
+{ "room_number": "301", "price": 5000, "status": "Available" }
+
+เพิ่มผู้เช่าเข้าห้อง (เฉพาะ Admin):
+
+Method: POST
+
+URL: /:id/tenant (เช่น /1/tenant)
+
+Body (JSON): { "tenant_name": "Somchai" }
+
+3. Meter Service (บันทึกมิเตอร์น้ำ-ไฟ)
+Base URL: http://localhost:8080/api/meters
+
+จดมิเตอร์น้ำ:
+
+Method: POST
+
+URL: /meter/water
+
+Body (JSON): { "room_id": "101", "unit": 15.5 }
+
+จดมิเตอร์ไฟ:
+
+Method: POST
+
+URL: /meter/electric
+
+Body (JSON): { "room_id": "101", "unit": 120.0 }
+
+ดูประวัติมิเตอร์ไฟ (รายห้อง):
+
+Method: GET
+
+URL: /meter/electric/101
+
+4. Bill Service (สรุปค่าใช้จ่าย)
+Base URL: http://localhost:8080/api/bills
+
+สร้างบิล (คำนวณอัตโนมัติ): * Service จะไปดึงราคาห้องจาก Room Service และหน่วยน้ำไฟจาก Meter Service มาคำนวณให้เอง
+
+Method: POST
+
+URL: /Bill/:room_id (เช่น /Bill/101)
+
+Body (JSON): {"status": "Unpaid"}  
+
+ดูบิลล่าสุดของห้อง:
+
+Method: GET
+
+URL: /Bill/101
+
+อัปเดตสถานะการจ่ายเงิน:
+
+Method: PATCH
+
+URL: /Bill/101
+
+Body (JSON): { "status": "Paid" }
 
 ## 🛠️ Technology Stack
 
