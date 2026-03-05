@@ -59,7 +59,7 @@ func fetchRoom(roomID string) (*Room, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("room-service status: %d", resp.StatusCode)
 	}
 
@@ -91,7 +91,7 @@ func fetchLatestWater(roomID string) (*WaterMeter, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("water meter status: %d", resp.StatusCode)
 	}
 
@@ -117,7 +117,7 @@ func fetchLatestElectric(roomID string) (*ElectricMeter, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("electric meter status: %d", resp.StatusCode)
 	}
 
@@ -146,91 +146,96 @@ func connectDB() {
 	db.AutoMigrate(&Bill{})
 }
 
+// Handler: GET /Bill - ดูบิลทั้งหมดของทุกห้อง
+func getAllBills(c *gin.Context) {
+	var bills []Bill
+	db.Find(&bills)
+	c.JSON(200, bills)
+}
+
+// Handler: GET /Bill/:room_id - ดูบิลล่าสุดของห้องนั้น
+func getLatestBillByRoom(c *gin.Context) {
+	roomID := c.Param("room_id")
+	var bill Bill
+	if err := db.Where("room_id = ?", roomID).Order("created_at desc").First(&bill).Error; err != nil {
+		c.JSON(404, gin.H{"error": "ไม่พบข้อมูลบิลสำหรับห้องนี้"})
+		return
+	}
+	c.JSON(200, bill)
+}
+
+// Handler: POST /Bill/:room_id - สร้างบิลค่าเช่าใหม่
+func createBill(c *gin.Context) {
+	roomID := c.Param("room_id")
+	var bill Bill
+	if err := c.ShouldBindJSON(&bill); err != nil {
+		c.JSON(400, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	// ผูก room_id ให้ชัดเจน
+	bill.RoomID = roomID
+	bill.Month = time.Now().Format("2006-01")
+
+	// --- ดึงค่าเช่าจาก room-service ---
+	if room, err := fetchRoom(roomID); err == nil {
+		bill.RentPrice = room.Price
+	} else {
+		log.Println("⚠️ fetchRoom error:", err)
+	}
+
+	// --- ดึงค่าน้ำ/ค่าไฟจาก meter-service แล้วคำนวณราคา ---
+	if water, err := fetchLatestWater(roomID); err == nil {
+		bill.WaterPrice = water.Unit * waterRatePerUnit
+	} else {
+		log.Println("⚠️ fetchLatestWater error:", err)
+	}
+
+	if electric, err := fetchLatestElectric(roomID); err == nil {
+		bill.ElectricPrice = electric.Unit * electricRatePerUnit
+	} else {
+		log.Println("⚠️ fetchLatestElectric error:", err)
+	}
+
+	// รวมยอด
+	bill.Total = bill.RentPrice + bill.WaterPrice + bill.ElectricPrice
+	if bill.Status == "" {
+		bill.Status = "Unpaid"
+	}
+
+	if err := db.Create(&bill).Error; err != nil {
+		c.JSON(500, gin.H{"error": "สร้างบิลไม่สำเร็จ"})
+		return
+	}
+	c.JSON(201, bill)
+}
+
+// Handler: PATCH /Bill/:room_id - แก้ไขสถานะการจ่ายเงิน หรือยอดเงิน
+func updateBill(c *gin.Context) {
+	roomID := c.Param("room_id")
+	var bill Bill
+	if err := db.Where("room_id = ?", roomID).Order("created_at desc").First(&bill).Error; err != nil {
+		c.JSON(404, gin.H{"error": "ไม่พบข้อมูลบิล"})
+		return
+	}
+
+	c.ShouldBindJSON(&bill)
+	bill.Total = bill.RentPrice + bill.WaterPrice + bill.ElectricPrice
+	db.Save(&bill)
+
+	c.JSON(200, gin.H{"message": "แก้ไขบิลค่าเช่าสำเร็จ", "data": bill})
+}
+
 func main() {
 	connectDB()
 
 	r := gin.Default()
 	r.Use(cors.Default())
 
-	// 🆕 GET /Bill = ดูบิลทั้งหมดของทุกห้อง
-	r.GET("/Bill", func(c *gin.Context) {
-			var bills []Bill
-			db.Find(&bills)
-			c.JSON(http.StatusOK, bills)
-		})
-
-	// GET /Bill/:room_id = ดูบิลล่าสุดของห้องนั้น
-	r.GET("/Bill/:room_id", func(c *gin.Context) {
-			roomID := c.Param("room_id")
-			var bill Bill
-			if err := db.Where("room_id = ?", roomID).Order("created_at desc").First(&bill).Error; err != nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบข้อมูลบิลสำหรับห้องนี้"})
-				return
-			}
-			c.JSON(http.StatusOK, bill)
-		})
-
-	// POST /Bill/:room_id = สร้างบิลค่าเช่าใหม่
-	r.POST("/Bill/:room_id", func(c *gin.Context) {
-			roomID := c.Param("room_id")
-			var bill Bill
-			if err := c.ShouldBindJSON(&bill); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
-				return
-			}
-
-			// ผูก room_id ให้ชัดเจน
-			bill.RoomID = roomID
-			bill.Month = time.Now().Format("2006-01")
-
-			// --- ดึงค่าเช่าจาก room-service ---
-			if room, err := fetchRoom(roomID); err == nil {
-				bill.RentPrice = room.Price
-			} else {
-				log.Println("⚠️ fetchRoom error:", err)
-			}
-
-			// --- ดึงค่าน้ำ/ค่าไฟจาก meter-service แล้วคำนวณราคา ---
-			if water, err := fetchLatestWater(roomID); err == nil {
-				bill.WaterPrice = water.Unit * waterRatePerUnit
-			} else {
-				log.Println("⚠️ fetchLatestWater error:", err)
-			}
-
-			if electric, err := fetchLatestElectric(roomID); err == nil {
-				bill.ElectricPrice = electric.Unit * electricRatePerUnit
-			} else {
-				log.Println("⚠️ fetchLatestElectric error:", err)
-			}
-
-			// รวมยอด
-			bill.Total = bill.RentPrice + bill.WaterPrice + bill.ElectricPrice
-			if bill.Status == "" {
-				bill.Status = "Unpaid"
-			}
-
-			if err := db.Create(&bill).Error; err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "สร้างบิลไม่สำเร็จ"})
-				return
-			}
-			c.JSON(http.StatusCreated, bill)
-		})
-
-	// PATCH /Bill/:room_id = แก้ไขสถานะการจ่ายเงิน หรือยอดเงิน
-	r.PATCH("/Bill/:room_id", func(c *gin.Context) {
-			roomID := c.Param("room_id")
-			var bill Bill
-			if err := db.Where("room_id = ?", roomID).Order("created_at desc").First(&bill).Error; err != nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบข้อมูลบิล"})
-				return
-			}
-
-			c.ShouldBindJSON(&bill)
-			bill.Total = bill.RentPrice + bill.WaterPrice + bill.ElectricPrice
-			db.Save(&bill)
-
-			c.JSON(http.StatusOK, gin.H{"message": "แก้ไขบิลค่าเช่าสำเร็จ", "data": bill})
-		})
+	r.GET("/Bill", getAllBills)
+	r.GET("/Bill/:room_id", getLatestBillByRoom)
+	r.POST("/Bill/:room_id", createBill)
+	r.PATCH("/Bill/:room_id", updateBill)
 
 	log.Println("🚀 Bill Service is running on port 8084...")
 	r.Run(":8084")
