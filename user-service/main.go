@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Ibetfinnz/MDD_Project/auth"
-	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
 	"github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"user-service/auth"
+	"user-service/middleware"
 )
 
 
@@ -130,6 +130,7 @@ func main() {
 	protected.Use(middleware.JWTMiddleware(authConfig))
 	{
 		protected.GET("/me", getCurrentUser)
+		protected.GET("/check-role", getCurrentUser)
 	}
 
 	log.Println("User service running on :8081")
