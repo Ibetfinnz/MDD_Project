@@ -47,41 +47,69 @@ docker-compose up --build
 
 **สำคัญ:** ทุก Request จะต้องยิงไปที่พอร์ต `8080` (Gateway) เท่านั้น
 
-### 1. User Service (จัดการผู้ใช้)
-
-| Action | Method | URL | Body (JSON) |
-| --- | --- | --- | --- |
-| สร้าง User ใหม่ | `POST` | `http://localhost:8080/api/users/users` | `{"name": "admin", "email": "a@test.com", "password": "123", "role": "admin"}` |
-| ดู User ทั้งหมด | `GET` | `http://localhost:8080/api/users/users` | - |
-
-### 2. Room Service (จัดการห้องพัก)
-
-| Action | Method | URL | Body (JSON) |
-| --- | --- | --- | --- |
-| เพิ่มห้องพักใหม่ | `POST` | `http://localhost:8080/api/rooms/rooms/` | `{"room_number": "101", "type": "VIP", "price": 5000, "status": "Available"}` |
-| ดูรายชื่อห้องทั้งหมด | `GET` | `http://localhost:8080/api/rooms/rooms/` | - |
-| ดูข้อมูลห้องราย ID | `GET` | `http://localhost:8080/api/rooms/rooms/1` | - |
-| เพิ่มผู้เช่าเข้าห้อง | `POST` | `http://localhost:8080/api/rooms/rooms/1/tenant` | `{"tenant_name": "Finnz"}` |
-
-### 3. Meter Service (จดมิเตอร์น้ำ-ไฟ)
-
-| Action | Method | URL | Body (JSON) |
-| --- | --- | --- | --- |
-| บันทึกมิเตอร์น้ำ | `POST` | `http://localhost:8080/api/meters/meter/water` | `{"room_id": "1", "unit": 10.5}` |
-| บันทึกมิเตอร์ไฟ | `POST` | `http://localhost:8080/api/meters/meter/electric` | `{"room_id": "1", "unit": 150}` |
-| ดูประวัติน้ำทั้งหมด | `GET` | `http://localhost:8080/api/meters/meter/water` | - |
-| ดูประวัติไฟทั้งหมด | `GET` | `http://localhost:8080/api/meters/meter/electric` | - |
-
-### 4. Bill Service (สรุปยอดบิล)
-
-| Action | Method | URL | Body (JSON) |
-| --- | --- | --- | --- |
-| สร้างบิลใหม่ | `POST` | `http://localhost:8080/api/bills/Bill/1` | `{"rent_price": 5000, "water_price": 100, "electric_price": 400}` |
-| ดูบิลทั้งหมด | `GET` | `http://localhost:8080/api/bills/Bill/` | - |
-| อัปเดตสถานะการจ่ายเงิน | `PATCH` | `http://localhost:8080/api/bills/Bill/1` | `{"status": "Paid"}` |
+เพื่อให้ข้อมูลดูเป็นระเบียบและง่ายต่อการนำไปใส่ในไฟล์ `README.md` ของโปรเจกต์บน GitHub ผมสรุปข้อมูล API ทั้งหมดในรูปแบบตารางให้ตามนี้ครับ
 
 ---
 
+## 🚀 API Documentation (Microservices via Gateway)
+
+**Base URL:** `http://localhost:8080` (API Gateway)
+
+### 1. User Service (`/api/users`)
+
+จัดการเรื่องการยืนยันตัวตนและการตรวจสอบสิทธิ์
+
+| Feature | Method | Endpoint | Request Body (JSON) | Description |
+| --- | --- | --- | --- | --- |
+| **Login** | `POST` | `/login` | `{"Username" : "admin",Password: "1234"}, {"Username" : "tenant1",Password: "1234"}` | เข้าสู่ระบบเพื่อกำหนดสิทธิ์การใช้งาน |
+| **Check Role** | `GET` | `/check-role` | - | ตรวจสอบข้อมูล User และ Role ที่ล็อกอินอยู่ |
+| **Logout** | `POST` | `/logout` | - | ออกจากระบบ |
+
+---
+
+### 2. Room Service (`/api/rooms`)
+
+จัดการข้อมูลห้องพัก (ต้อง Login ก่อนใช้งาน)
+
+| Feature | Method | Endpoint | Request Body (JSON) | Role |
+| --- | --- | --- | --- | --- |
+| **Get All Rooms** | `GET` | `/rooms` | - | Any |
+| **Get Room Detail** | `GET` | `/rooms/:id` | - | Any |
+| **Create Room** | `POST` | `/rooms` | `{"room_number": "301", "price": 5000, "status": "Available"}` | **Admin** |
+| **Update Room** | `PATCH` | `/rooms/:id` | `{"price": 5500}` | **Admin** |
+| **Add Tenant** | `POST` | `/rooms/:id/tenant` | `{"tenant_name": "Somchai"}` | **Admin** |
+
+---
+
+### 3. Meter Service (`/api/meters`)
+
+บันทึกและดูประวัติการใช้ค่าน้ำ-ค่าไฟ
+
+| Feature | Method | Endpoint | Request Body (JSON) | Description |
+| --- | --- | --- | --- | --- |
+| **Record Water** | `POST` | `/meter/water` | `{"room_id": "101", "unit": 15.5}` | บันทึกมิเตอร์น้ำล่าสุด |
+| **Record Electric** | `POST` | `/meter/electric` | `{"room_id": "101", "unit": 120.0}` | บันทึกมิเตอร์ไฟล่าสุด |
+| **Water History** | `GET` | `/meter/water/:room_id` | - | ดูหน่วยน้ำล่าสุดของห้องนั้น |
+| **Electric History** | `GET` | `/meter/electric/:room_id` | - | ดูหน่วยไฟล่าสุดของห้องนั้น |
+
+---
+
+### 4. Bill Service (`/api/bills`)
+
+สรุปค่าใช้จ่ายประจำเดือน (ดึงข้อมูลจาก Room และ Meter Service)
+
+| Feature | Method | Endpoint | Request Body (JSON) | Description |
+| --- | --- | --- | --- | --- |
+| **Create Bill** | `POST` | `/Bill/:room_id` | `{"status": "Unpaid"}` | ระบบจะคำนวณเงินรวมให้อัตโนมัติ |
+| **Get Latest Bill** | `GET` | `/Bill/:room_id` | - | ดูข้อมูลบิลล่าสุดของห้อง |
+| **Get All Bills** | `GET` | `/Bill/` | - | ดูรายการบิลทั้งหมดที่มีในระบบ |
+| **Update Status** | `PATCH` | `/Bill/:room_id` | `{"status": "Paid"}` | อัปเดตสถานะการจ่ายเงิน |
+
+---
+
+> **Tip สำหรับ GitHub:** คุณสามารถก๊อปปี้ Markdown ด้านบนไปวางในไฟล์ `README.md` ได้เลยครับ ตารางจะแสดงผลอย่างสวยงามบนหน้าโปรเจกต์ของคุณ
+
+มีส่วนไหนของตารางที่อยากให้เพิ่มรายละเอียด เช่น **HTTP Status Code** (200, 201, 401) ไหมครับ?
 ## 🛠️ Technology Stack
 
 * **Language:** Go 1.x
