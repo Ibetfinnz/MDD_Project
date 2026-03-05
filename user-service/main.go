@@ -3,11 +3,16 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
+	"github.com/Ibetfinnz/MDD_Project/auth"
+	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
 	"github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+	"auth/middleware"
+
 
 type User struct {
 	gorm.Model
@@ -16,8 +21,13 @@ type User struct {
 	Role     string `json:"role"`
 }
 
+type LoginInput struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
 var db *gorm.DB
-var currentUser *User
+var authConfig *auth.AuthConfig
 
 // ===== Connect DB =====
 func connectDB() {
@@ -43,85 +53,97 @@ func connectDB() {
 	})
 }
 
+// ===== Handlers =====
+
+// Service check
+func serviceCheck(c *gin.Context) {
+	c.String(http.StatusOK, "User Service Running")
+}
+
+// Get all users
+func getAllUsers(c *gin.Context) {
+	var users []User
+	if err := db.Select("username, role").Find(&users).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to fetch users",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, users)
+}
+
+// Login
+func login(c *gin.Context) {
+	var input LoginInput
+	c.ShouldBindJSON(&input)
+
+	var user User
+	if err := db.Where("username = ?", input.Username).First(&user).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid login"})
+		return
+	}
+
+	if user.Password != input.Password {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid login"})
+		return
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"username": user.Username,
+		"role":     user.Role,
+		"exp":      time.Now().Add(time.Hour * 24).Unix(),
+	})
+
+	tokenString, _ := token.SignedString(middleware.JWTSecret)
+		tokenString, err := authConfig.GenerateToken(user.Username, user.Role, 24*time.Hour)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Could not generate token",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Login successful",
+			"token":   tokenString,
+		})
+	})
+
+	tokenString, err := token.SignedString(jwtSecret)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Could not generate token",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		authConfig = auth.NewAuthConfig("super-secret-key")
+		"message": "Login successful",
+		"token":   tokenString,
+	})
+}
+
+		protected := r.Group("/")
+		protected.Use(authmw.JWTMiddleware(authConfig))
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Logged out",
+	})
+}
+
 func main() {
 	connectDB()
 
 	r := gin.Default()
 
-	// --- Service Check ---
-	r.GET("/", func(c *gin.Context) {
-		c.String(http.StatusOK, "User Service Running")
-	})
+	r.POST("/login", login)
 
-	// --- Get All Users ---
-	r.GET("/users", func(c *gin.Context) {
-		var users []User
-		if err := db.Select("username, role").Find(&users).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to fetch users",
-			})
-			return
-		}
-		c.JSON(http.StatusOK, users)
-	})
+	protected := r.Group("/")
+	protected.Use(middleware.JWTAuth())
+	{
+		protected.GET("/me", getCurrentUser)
+	}
 
-	// ===== LOGIN =====
-	r.POST("/login", func(c *gin.Context) {
-		var input User
-		if err := c.ShouldBindJSON(&input); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Invalid format",
-			})
-			return
-		}
-
-		var user User
-		if err := db.Where("username = ?", input.Username).First(&user).Error; err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid username or password",
-			})
-			return
-		}
-
-		if user.Password != input.Password {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid username or password",
-			})
-			return
-		}
-
-		currentUser = &user
-
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Login successful",
-			"username": currentUser.Username,
-			"role":    currentUser.Role,
-		})
-	})
-
-	// ===== LOGOUT =====
-	r.POST("/logout", func(c *gin.Context) {
-		currentUser = nil
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Logged out",
-		})
-	})
-
-	// ===== CHECK ROLE =====
-	r.GET("/check-role", func(c *gin.Context) {
-		if currentUser == nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "No user logged in",
-			})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"username": currentUser.Username,
-			"role": currentUser.Role,
-		})
-	})
-
-	log.Println("Running on :8081")
+	log.Println("User service running :8081")
 	r.Run(":8081")
 }

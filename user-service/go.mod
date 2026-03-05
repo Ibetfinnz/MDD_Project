@@ -3,10 +3,14 @@ module user-service
 go 1.25.0
 
 require (
+	github.com/Ibetfinnz/MDD_Project/auth v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/glebarez/sqlite v1.11.0
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	gorm.io/gorm v1.31.1
 )
+
+replace github.com/Ibetfinnz/MDD_Project/auth => ../auth
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
