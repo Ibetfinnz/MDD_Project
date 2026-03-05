@@ -57,13 +57,42 @@ docker-compose up --build
 
 ### 1. User Service (`/api/users`)
 
-จัดการเรื่องการยืนยันตัวตนและการตรวจสอบสิทธิ์
+จัดการเรื่องการยืนยันตัวตนและข้อมูลผู้ใช้งาน (Login + JWT)
 
 | Feature | Method | Endpoint | Request Body (JSON) | Description |
 | --- | --- | --- | --- | --- |
-| **Login** | `POST` | `/login` | `{"Username" : "admin",Password: "1234"}, {"Username" : "tenant1",Password: "1234"}` | เข้าสู่ระบบเพื่อกำหนดสิทธิ์การใช้งาน |
-| **Check Role** | `GET` | `/check-role` | - | ตรวจสอบข้อมูล User และ Role ที่ล็อกอินอยู่ |
-| **Logout** | `POST` | `/logout` | - | ออกจากระบบ |
+| **Login** | `POST` | `/login` | `{ "username": "admin", "password": "1234" }` | เข้าสู่ระบบและรับ JWT token สำหรับใช้งาน API อื่น |
+| **Get Current User** | `GET` | `/me` | - | ดึงข้อมูลผู้ใช้ที่ล็อกอินอยู่จาก JWT (ต้องส่ง `Authorization: Bearer &lt;token&gt;`) |
+| **Get All Users** | `GET` | `/users` | - | ดึงรายชื่อผู้ใช้ทั้งหมด (เฉพาะ `username`, `role`) |
+
+#### 🔐 วิธีใช้ Token ตอนทดสอบ (Postman)
+
+1. เริ่มจาก Login ก่อน
+    - Method: `POST`
+    - URL: `http://localhost:8080/api/users/login`
+    - Body (JSON):
+       ```json
+       {
+          "username": "admin",
+          "password": "1234"
+       }
+       ```
+    - ถ้า Login สำเร็จ จะได้ response ประมาณนี้:
+       ```json
+       {
+          "message": "Login successful",
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+       }
+       ```
+
+2. คัดลอกค่าในฟิลด์ `token`
+
+3. เวลาเรียก API ที่ต้องใช้สิทธิ์ (เช่น `/api/users/me`, `/api/rooms/rooms` ฯลฯ)
+   - ไปที่แท็บ **Authorization** ใน Postman
+   - เลือก Type = `Bearer Token`
+   - วางค่าที่คัดลอกจากฟิลด์ `token` ลงในช่อง **Token**
+
+เมื่อกด Send แล้ว Postman จะสร้าง Header `Authorization: Bearer <token>` ให้อัตโนมัติ และ API ที่อยู่หลัง middleware JWT จะสามารถอ่าน username / role จาก token และตอบข้อมูลให้ตามสิทธิ์ได้
 
 ---
 
