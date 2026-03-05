@@ -56,49 +56,49 @@ func connectDB() {
 
 // Service check
 func serviceCheck(c *gin.Context) {
-	c.String(http.StatusOK, "User Service Running")
+	c.String(200, "User Service Running")
 }
 
 // Get all users
 func getAllUsers(c *gin.Context) {
 	var users []User
 	if err := db.Select("username, role").Find(&users).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(500, gin.H{
 			"error": "Failed to fetch users",
 		})
 		return
 	}
-	c.JSON(http.StatusOK, users)
+	c.JSON(200, users)
 }
 
 // Login
 func login(c *gin.Context) {
 	var input LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		c.JSON(400, gin.H{"error": "Invalid input"})
 		return
 	}
 
 	var user User
 	if err := db.Where("username = ?", input.Username).First(&user).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid login"})
+		c.JSON(401, gin.H{"error": "Invalid login"})
 		return
 	}
 
 	if user.Password != input.Password {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid login"})
+		c.JSON(401, gin.H{"error": "Invalid login"})
 		return
 	}
 
 	tokenString, err := authConfig.GenerateToken(user.Username, user.Role, 24*time.Hour)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(500, gin.H{
 			"error": "Could not generate token",
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(200, gin.H{
 		"message": "Login successful",
 		"token":   tokenString,
 	})
@@ -109,7 +109,7 @@ func getCurrentUser(c *gin.Context) {
 	username, _ := c.Get("username")
 	role, _ := c.Get("role")
 
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(200, gin.H{
 		"username": username,
 		"role":     role,
 	})
@@ -126,11 +126,10 @@ func main() {
 	r.GET("/users", getAllUsers)
 	r.POST("/login", login)
 
-	protected := r.Group("/")
-	protected.Use(middleware.JWTMiddleware(authConfig))
+	authorized := r.Group("/")
+	authorized.Use(middleware.JWTMiddleware(authConfig))
 	{
-		protected.GET("/me", getCurrentUser)
-		protected.GET("/check-role", getCurrentUser)
+		authorized.GET("/me", getCurrentUser)
 	}
 
 	log.Println("User service running on :8081")
