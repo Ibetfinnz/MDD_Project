@@ -36,7 +36,7 @@ func getCurrentUser() (*CurrentUser, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("not authorized")
 	}
 
@@ -51,6 +51,110 @@ func getCurrentUser() (*CurrentUser, error) {
 	}
 
 	return &user, nil
+}
+
+// Handler: GET /rooms
+func getRooms(c *gin.Context) {
+	_, err := getCurrentUser()
+	if err != nil {
+		c.JSON(401, gin.H{"error": "กรุณา login ก่อน"})
+		return
+	}
+
+	var rooms []Room
+	db.Find(&rooms)
+	c.JSON(200, rooms)
+}
+
+// Handler: GET /rooms/:id
+func getRoomByID(c *gin.Context) {
+	_, err := getCurrentUser()
+	if err != nil {
+		c.JSON(401, gin.H{"error": "กรุณา login ก่อน"})
+		return
+	}
+
+	id := c.Param("id")
+	var room Room
+	if err := db.First(&room, id).Error; err != nil {
+		c.JSON(404, gin.H{"error": "ไม่พบห้องพัก"})
+		return
+	}
+
+	c.JSON(200, room)
+}
+
+// Handler: POST /rooms
+func createRoom(c *gin.Context) {
+	user, err := getCurrentUser()
+	if err != nil || user.Role != "admin" {
+		c.JSON(403, gin.H{"error": "เฉพาะ admin เท่านั้น"})
+		return
+	}
+
+	var room Room
+	if err := c.ShouldBindJSON(&room); err != nil {
+		c.JSON(400, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
+		return
+	}
+
+	db.Create(&room)
+	c.JSON(201, room)
+}
+
+// Handler: PATCH /rooms/:id
+func updateRoom(c *gin.Context) {
+	user, err := getCurrentUser()
+	if err != nil || user.Role != "admin" {
+		c.JSON(403, gin.H{"error": "เฉพาะ admin เท่านั้น"})
+		return
+	}
+
+	id := c.Param("id")
+	var room Room
+	if err := db.First(&room, id).Error; err != nil {
+		c.JSON(404, gin.H{"error": "ไม่พบห้องพัก"})
+		return
+	}
+
+	c.ShouldBindJSON(&room)
+	db.Save(&room)
+
+	c.JSON(200, gin.H{
+		"message": "แก้ไขสำเร็จ",
+		"data":    room,
+	})
+}
+
+// Handler: POST /rooms/:id/tenant
+func addTenantToRoom(c *gin.Context) {
+	user, err := getCurrentUser()
+	if err != nil || user.Role != "admin" {
+		c.JSON(403, gin.H{"error": "เฉพาะ admin เท่านั้น"})
+		return
+	}
+
+	id := c.Param("id")
+	var room Room
+	if err := db.First(&room, id).Error; err != nil {
+		c.JSON(404, gin.H{"error": "ไม่พบห้องพัก"})
+		return
+	}
+
+	var input struct {
+		TenantName string `json:"tenant_name"`
+	}
+
+	c.ShouldBindJSON(&input)
+
+	room.TenantName = input.TenantName
+	room.Status = "Occupied"
+	db.Save(&room)
+
+	c.JSON(200, gin.H{
+		"message": "เพิ่มผู้เช่าสำเร็จ",
+		"data":    room,
+	})
 }
 
 // 2. ฟังก์ชันเชื่อมต่อฐานข้อมูล
@@ -100,109 +204,11 @@ func main() {
 	// 3. ตั้งค่า CORS (สำคัญเพื่อให้เชื่อมต่อกับ Gateway/Frontend ได้)
 	r.Use(cors.Default())
 
-	r.GET("/rooms", func(c *gin.Context) {
-
-		_, err := getCurrentUser()
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "กรุณา login ก่อน"})
-			return
-		}
-
-		var rooms []Room
-		db.Find(&rooms)
-		c.JSON(http.StatusOK, rooms)
-	})
-
-	r.GET("/rooms/:id", func(c *gin.Context) {
-
-		_, err := getCurrentUser()
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "กรุณา login ก่อน"})
-			return
-		}
-
-		id := c.Param("id")
-		var room Room
-		if err := db.First(&room, id).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบห้องพัก"})
-			return
-		}
-
-		c.JSON(http.StatusOK, room)
-	})
-
-	r.POST("/rooms", func(c *gin.Context) {
-
-		user, err := getCurrentUser()
-		if err != nil || user.Role != "admin" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "เฉพาะ admin เท่านั้น"})
-			return
-		}
-
-		var room Room
-		if err := c.ShouldBindJSON(&room); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
-			return
-		}
-
-		db.Create(&room)
-		c.JSON(http.StatusCreated, room)
-	})
-
-	r.PATCH("/rooms/:id", func(c *gin.Context) {
-
-		user, err := getCurrentUser()
-		if err != nil || user.Role != "admin" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "เฉพาะ admin เท่านั้น"})
-			return
-		}
-
-		id := c.Param("id")
-		var room Room
-		if err := db.First(&room, id).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบห้องพัก"})
-			return
-		}
-
-		c.ShouldBindJSON(&room)
-		db.Save(&room)
-
-		c.JSON(http.StatusOK, gin.H{
-			"message": "แก้ไขสำเร็จ",
-			"data":    room,
-		})
-	})
-
-	r.POST("/rooms/:id/tenant", func(c *gin.Context) {
-
-		user, err := getCurrentUser()
-		if err != nil || user.Role != "admin" {
-			c.JSON(http.StatusForbidden, gin.H{"error": "เฉพาะ admin เท่านั้น"})
-			return
-		}
-
-		id := c.Param("id")
-		var room Room
-		if err := db.First(&room, id).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "ไม่พบห้องพัก"})
-			return
-		}
-
-		var input struct {
-			TenantName string `json:"tenant_name"`
-		}
-
-		c.ShouldBindJSON(&input)
-
-		room.TenantName = input.TenantName
-		room.Status = "Occupied"
-		db.Save(&room)
-
-		c.JSON(http.StatusOK, gin.H{
-			"message": "เพิ่มผู้เช่าสำเร็จ",
-			"data":    room,
-		})
-	})
+	r.GET("/rooms", getRooms)
+	r.GET("/rooms/:id", getRoomByID)
+	r.POST("/rooms", createRoom)
+	r.PATCH("/rooms/:id", updateRoom)
+	r.POST("/rooms/:id/tenant", addTenantToRoom)
 
 	log.Println("🚀 Room Service is running on port 8082...")
 	r.Run(":8082")
