@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
-	"auth/middleware"
 
 
 type User struct {
@@ -107,7 +106,7 @@ func login(c *gin.Context) {
 			"message": "Login successful",
 			"token":   tokenString,
 		})
-	})
+	}
 
 	tokenString, err := token.SignedString(jwtSecret)
 	if err != nil {
@@ -122,14 +121,12 @@ func login(c *gin.Context) {
 		"message": "Login successful",
 		"token":   tokenString,
 	})
-}
 
 		protected := r.Group("/")
 		protected.Use(authmw.JWTMiddleware(authConfig))
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Logged out",
 	})
-}
 
 func main() {
 	connectDB()

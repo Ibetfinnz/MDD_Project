@@ -9,8 +9,6 @@ require (
 	gorm.io/gorm v1.31.1
 )
 
-replace github.com/Ibetfinnz/MDD_Project/auth => ../auth
-
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
