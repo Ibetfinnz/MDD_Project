@@ -1,6 +1,9 @@
 # ใช้ Go เวอร์ชั่นล่าสุดแบบเบาบาง (Alpine)
 FROM golang:alpine
 
+# ติดตั้ง git สำหรับ go mod
+RUN apk add --no-cache git
+
 # กำหนดโฟลเดอร์ทำงานข้างใน Docker
 WORKDIR /app
 

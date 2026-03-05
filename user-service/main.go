@@ -74,7 +74,10 @@ func getAllUsers(c *gin.Context) {
 // Login
 func login(c *gin.Context) {
 	var input LoginInput
-	c.ShouldBindJSON(&input)
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
 
 	var user User
 	if err := db.Where("username = ?", input.Username).First(&user).Error; err != nil {
@@ -87,28 +90,7 @@ func login(c *gin.Context) {
 		return
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"username": user.Username,
-		"role":     user.Role,
-		"exp":      time.Now().Add(time.Hour * 24).Unix(),
-	})
-
-	tokenString, _ := token.SignedString(middleware.JWTSecret)
-		tokenString, err := authConfig.GenerateToken(user.Username, user.Role, 24*time.Hour)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Could not generate token",
-			})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"message": "Login successful",
-			"token":   tokenString,
-		})
-	}
-
-	tokenString, err := token.SignedString(jwtSecret)
+	tokenString, err := authConfig.GenerateToken(user.Username, user.Role, 24*time.Hour)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Could not generate token",
@@ -117,30 +99,41 @@ func login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		authConfig = auth.NewAuthConfig("super-secret-key")
 		"message": "Login successful",
 		"token":   tokenString,
 	})
+}
 
-		protected := r.Group("/")
-		protected.Use(authmw.JWTMiddleware(authConfig))
+// Get current user info from JWT
+func getCurrentUser(c *gin.Context) {
+	username, _ := c.Get("username")
+	role, _ := c.Get("role")
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Logged out",
+		"username": username,
+		"role":     role,
 	})
+}
 
 func main() {
 	connectDB()
 
+	authConfig = auth.NewAuthConfig("super-secret-key")
+
 	r := gin.Default()
 
+	r.GET("/", serviceCheck)
+	r.GET("/users", getAllUsers)
 	r.POST("/login", login)
 
 	protected := r.Group("/")
-	protected.Use(middleware.JWTAuth())
+	protected.Use(middleware.JWTMiddleware(authConfig))
 	{
 		protected.GET("/me", getCurrentUser)
 	}
 
-	log.Println("User service running :8081")
-	r.Run(":8081")
+	log.Println("User service running on :8081")
+	if err := r.Run(":8081"); err != nil {
+		log.Fatal(err)
+	}
 }
