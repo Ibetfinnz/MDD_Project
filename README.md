@@ -116,10 +116,10 @@ docker-compose up --build
 
 | Feature | Method | Endpoint | Request Body (JSON) | Description |
 | --- | --- | --- | --- | --- |
-| **Record Water** | `POST` | `/meter/water` | `{"room_id": "101", "unit": 15.5}` | บันทึกมิเตอร์น้ำล่าสุด |
-| **Record Electric** | `POST` | `/meter/electric` | `{"room_id": "101", "unit": 120.0}` | บันทึกมิเตอร์ไฟล่าสุด |
-| **Water History** | `GET` | `/meter/water/:room_id` | - | ดูหน่วยน้ำล่าสุดของห้องนั้น |
-| **Electric History** | `GET` | `/meter/electric/:room_id` | - | ดูหน่วยไฟล่าสุดของห้องนั้น |
+| **Record Water** | `POST` | `/water` | `{"room_id": "101", "unit": 15.5}` | บันทึกมิเตอร์น้ำล่าสุด |
+| **Record Electric** | `POST` | `/electric` | `{"room_id": "101", "unit": 120.0}` | บันทึกมิเตอร์ไฟล่าสุด |
+| **Water History** | `GET` | `/water/:room_id` | - | ดูหน่วยน้ำล่าสุดของห้องนั้น |
+| **Electric History** | `GET` | `/electric/:room_id` | - | ดูหน่วยไฟล่าสุดของห้องนั้น |
 
 ---
 
