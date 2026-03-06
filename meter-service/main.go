@@ -1,13 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
-	"net/http"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"gorm.io/gorm"
 )
 
@@ -26,6 +27,8 @@ type ElectricMeter struct {
 }
 
 var db *gorm.DB
+var rabbitConn *amqp.Connection
+var rabbitCh *amqp.Channel
 
 func connectDB() {
 	var err error
@@ -35,6 +38,71 @@ func connectDB() {
 	}
 	log.Println("✅ Meter Database connected!")
 	db.AutoMigrate(&WaterMeter{}, &ElectricMeter{})
+}
+
+// --- RabbitMQ Setup ---
+func connectRabbitMQ() {
+	var err error
+	rabbitConn, err = amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
+	if err != nil {
+		log.Println("⚠️ Failed to connect to RabbitMQ:", err)
+		return
+	}
+
+	rabbitCh, err = rabbitConn.Channel()
+	if err != nil {
+		log.Println("⚠️ Failed to open channel:", err)
+		return
+	}
+
+	// Simple durable queues for water & electric events
+	queues := []string{"meter.water.created", "meter.electric.created"}
+	for _, q := range queues {
+		_, err = rabbitCh.QueueDeclare(
+			q,
+			true,  // durable
+			false, // autoDelete
+			false, // exclusive
+			false, // noWait
+			nil,   // args
+		)
+		if err != nil {
+			log.Println("⚠️ Failed to declare queue:", q, err)
+		}
+	}
+
+	log.Println("✅ Meter Service connected to RabbitMQ")
+}
+
+func publishEvent(queue string, payload any) {
+	if rabbitCh == nil {
+		// ถ้า RabbitMQ ใช้งานไม่ได้ ก็แค่ log แล้วข้าม (ไม่ให้ล้ม service)
+		log.Println("⚠️ RabbitMQ channel not ready, skip publish to", queue)
+		return
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		log.Println("⚠️ Failed to marshal event:", err)
+		return
+	}
+
+	err = rabbitCh.Publish(
+		"",    // default exchange
+		queue, // routing key = queue name
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        body,
+			Timestamp:   time.Now(),
+		},
+	)
+	if err != nil {
+		log.Println("⚠️ Failed to publish event to", queue, ":", err)
+	} else {
+		log.Println("📨 Published event to", queue)
+	}
 }
 
 // Handler: GET /water - ดูประวัติการจดมิเตอร์น้ำทั้งหมด
@@ -61,6 +129,10 @@ func createWaterMeter(c *gin.Context) {
 	}
 	meter.Month = time.Now().Format("2006-01")
 	db.Create(&meter)
+
+	// publish event ไป RabbitMQ (async)
+	publishEvent("meter.water.created", meter)
+
 	c.JSON(201, meter)
 }
 
@@ -88,11 +160,16 @@ func createElectricMeter(c *gin.Context) {
 	}
 	meter.Month = time.Now().Format("2006-01")
 	db.Create(&meter)
+
+	// publish event ไป RabbitMQ (async)
+	publishEvent("meter.electric.created", meter)
+
 	c.JSON(201, meter)
 }
 
 func main() {
 	connectDB()
+	connectRabbitMQ()
 
 	r := gin.Default()
 	r.Use(cors.Default())

@@ -11,6 +11,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	amqp "github.com/rabbitmq/amqp091-go"
 	"gorm.io/gorm"
 )
 
@@ -135,6 +136,8 @@ func fetchLatestElectric(roomID string) (*ElectricMeter, error) {
 }
 
 var db *gorm.DB
+var rabbitConn *amqp.Connection
+var rabbitCh *amqp.Channel
 
 func connectDB() {
 	var err error
@@ -144,6 +147,67 @@ func connectDB() {
 	}
 	log.Println("✅ Bill Database connected!")
 	db.AutoMigrate(&Bill{})
+}
+
+// --- RabbitMQ Consumer ---
+func connectRabbitMQ() {
+	var err error
+	rabbitConn, err = amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
+	if err != nil {
+		log.Println("⚠️ Failed to connect to RabbitMQ:", err)
+		return
+	}
+
+	rabbitCh, err = rabbitConn.Channel()
+	if err != nil {
+		log.Println("⚠️ Failed to open channel:", err)
+		return
+	}
+
+	queues := []string{"meter.water.created", "meter.electric.created"}
+	for _, q := range queues {
+		_, err = rabbitCh.QueueDeclare(
+			q,
+			true,
+			false,
+			false,
+			false,
+			nil,
+		)
+		if err != nil {
+			log.Println("⚠️ Failed to declare queue:", q, err)
+		}
+	}
+
+	log.Println("✅ Bill Service connected to RabbitMQ")
+
+	go consumeMeterEvents("meter.water.created")
+	go consumeMeterEvents("meter.electric.created")
+}
+
+func consumeMeterEvents(queue string) {
+	if rabbitCh == nil {
+		return
+	}
+
+	msgs, err := rabbitCh.Consume(
+		queue,
+		"",    // consumer
+		true,   // autoAck (ง่ายๆสำหรับ demo)
+		false,  // exclusive
+		false,  // noLocal
+		false,  // noWait
+		nil,    // args
+	)
+	if err != nil {
+		log.Println("⚠️ Failed to register consumer for", queue, ":", err)
+		return
+	}
+
+	for msg := range msgs {
+		log.Printf("📥 Bill Service received from %s: %s\n", queue, string(msg.Body))
+		// ตรงนี้สามารถต่อยอดไปเขียนลง DB หรือ trigger logic อื่นได้
+	}
 }
 
 // Handler: GET /Bill - ดูบิลทั้งหมดของทุกห้อง
@@ -228,6 +292,7 @@ func updateBill(c *gin.Context) {
 
 func main() {
 	connectDB()
+	connectRabbitMQ()
 
 	r := gin.Default()
 	r.Use(cors.Default())
