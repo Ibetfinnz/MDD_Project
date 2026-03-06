@@ -7,8 +7,8 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"pkg/auth"
-	"pkg/middleware"
+	"auth"
+	"auth/middleware"
 )
 
 
