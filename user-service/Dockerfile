@@ -7,6 +7,9 @@ WORKDIR /app
 # copy source ทั้งหมดก่อน
 COPY . .
 
+COPY ../common /common
+
+
 # โหลด dependency
 RUN go mod download
 
