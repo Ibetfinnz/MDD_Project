@@ -4,14 +4,14 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 
-# copy source ทั้งหมดก่อน
 COPY . .
 
-# โหลด dependency
+WORKDIR /app/bill-service
+
 RUN go mod download
 
-# เปิดพอร์ต (ให้แก้เลข 8081 นี้ให้ตรงกับพอร์ตของแต่ละ Service นะครับ)
+RUN CGO_ENABLED=0 GOOS=linux go build -o main .
+
 EXPOSE 8084
 
-# สั่งรันไฟล์ที่ Build เสร็จแล้ว
 CMD ["./main"]

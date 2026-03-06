@@ -3,6 +3,7 @@ module auth
 go 1.25.0
 
 require (
+	github.com/Ibetfinnz/MDD_Project/auth v0.0.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 )
@@ -38,3 +39,5 @@ require (
 	golang.org/x/text v0.34.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 )
+
+replace github.com/Ibetfinnz/MDD_Project/auth => ../auth

@@ -1,34 +1,44 @@
 services:
   # 1. User Service
   user-service:
-    build: ./user-service
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
     container_name: mdd_user_service
     ports:
-      - "8081:8081"                # ผูกพอร์ต เครื่องเรา:พอร์ตในDocker
+      - "8081:8081"
 
   # 2. Room Service
   room-service:
-    build: ./room-service
+    build:
+      context: .
+      dockerfile: room-service/Dockerfile
     container_name: mdd_room_service
     ports:
       - "8082:8082"
   # 3. Meter Service
   meter-service:
-    build: ./meter-service
-    container_name: mdd_meter-service
+    build:
+      context: .
+      dockerfile: meter-service/Dockerfile
+    container_name: mdd_meter_service
     ports:
-      - "8083:8083"                # ผูกพอร์ต เครื่องเรา:พอร์ตในDocker
+      - "8083:8083"
 
   # 4. bill-service
   bill-service:
-    build: ./bill-service
-    container_name: mdd_bill-service
+    build:
+      context: .
+      dockerfile: bill-service/Dockerfile
+    container_name: mdd_bill_service
     ports:
       - "8084:8084"
 
   # 5. Gateway Service
   gateway-service:
-    build: ./gateway-service
+    build:
+      context: .
+      dockerfile: gateway-service/Dockerfile
     container_name: mdd_gateway_service
     ports:
       - "8080:8080"
@@ -43,8 +53,8 @@ services:
     image: rabbitmq:3-management
     container_name: mdd_rabbitmq
     ports:
-      - "5672:5672"      # AMQP
-      - "15672:15672"    # Management UI
+      - "5672:5672"
+      - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
