@@ -4,10 +4,8 @@ RUN apk add --no-cache git
 
 WORKDIR /app
 
-# copy source ทั้งหมดก่อน
+# copy source ทั้งหมดก่อน (ใช้ context ทั้งโปรเจกต์จาก docker-compose)
 COPY . .
-
-COPY ../common /common
 
 
 # โหลด dependency

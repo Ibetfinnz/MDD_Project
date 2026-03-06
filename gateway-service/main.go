@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/sony/gobreaker"
-	"shared/auth"
+	"pkg/auth"
 )
 
 // ฟังก์ชันสำหรับจัดการ CORS (เปิดประตูให้ Frontend)
