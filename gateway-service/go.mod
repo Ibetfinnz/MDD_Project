@@ -7,5 +7,5 @@ require (
 	auth v0.0.0
 )
 
-replace auth => ../auth
+replace github.com/Ibetfinnz/MDD_Project/auth => ../auth
 

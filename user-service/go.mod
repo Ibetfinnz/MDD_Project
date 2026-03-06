@@ -51,4 +51,4 @@ require (
 	modernc.org/sqlite v1.23.1 // indirect
 )
 
-replace auth => ../auth
+replace github.com/Ibetfinnz/MDD_Project/auth => ../auth
