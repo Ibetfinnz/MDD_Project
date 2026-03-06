@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"user-service/auth"
+	"shared/auth"
 )
 
 // JWTMiddleware ใช้ตรวจสอบ JWT จาก header Authorization แล้วใส่ username, role ลงใน context

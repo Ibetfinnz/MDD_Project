@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/sony/gobreaker"
+	"shared/auth"
 )
 
 // ฟังก์ชันสำหรับจัดการ CORS (เปิดประตูให้ Frontend)
@@ -23,6 +25,53 @@ func enableCORS(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// authMiddleware ตรวจสอบ JWT ที่ Gateway เพียงจุดเดียว แล้วส่ง username/role ต่อไปยัง service อื่นผ่าน header
+func authMiddleware(next http.Handler) http.Handler {
+	authCfg := auth.NewAuthConfig("super-secret-key")
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// ปล่อยให้ OPTIONS ผ่าน (สำหรับ CORS preflight)
+		if r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		path := r.URL.Path
+
+		// ปล่อย endpoint ที่ไม่ต้อง auth เช่น login ไว้
+		if strings.HasPrefix(path, "/api/users/login") || path == "/" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "missing Authorization header", http.StatusUnauthorized)
+			return
+		}
+
+		parts := strings.Fields(authHeader)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			http.Error(w, "invalid Authorization header format", http.StatusUnauthorized)
+			return
+		}
+
+		tokenString := parts[1]
+
+		claims, err := authCfg.ValidateToken(tokenString)
+		if err != nil {
+			http.Error(w, "invalid or expired token", http.StatusUnauthorized)
+			return
+		}
+
+		// ใส่ข้อมูล user ลงใน header เพื่อให้ service ปลายทางใช้ต่อได้ โดยไม่ต้อง parse JWT ซ้ำ
+		r.Header.Set("X-User-Name", claims.Username)
+		r.Header.Set("X-User-Role", claims.Role)
 
 		next.ServeHTTP(w, r)
 	})
@@ -96,5 +145,5 @@ func main() {
 	log.Println("🚀 API Gateway with CORS is running on port 8080...")
 
 	// รัน Server โดยครอบด้วย Middleware CORS ที่เราสร้างไว้
-	log.Fatal(http.ListenAndServe(":8080", enableCORS(mux)))
+	log.Fatal(http.ListenAndServe(":8080", enableCORS(authMiddleware(mux))))
 }

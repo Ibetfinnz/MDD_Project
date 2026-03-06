@@ -1,11 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -29,33 +27,22 @@ type CurrentUser struct {
 
 var db *gorm.DB
 
-func getCurrentUser() (*CurrentUser, error) {
-	resp, err := http.Get("http://user-service:8081/check-role")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
+func getCurrentUser(c *gin.Context) (*CurrentUser, error) {
+	username := c.GetHeader("X-User-Name")
+	role := c.GetHeader("X-User-Role")
+	if username == "" || role == "" {
 		return nil, fmt.Errorf("not authorized")
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var user CurrentUser
-	if err := json.Unmarshal(body, &user); err != nil {
-		return nil, err
-	}
-
-	return &user, nil
+	return &CurrentUser{
+		Username: username,
+		Role:     role,
+	}, nil
 }
 
 // Handler: GET /rooms
 func getRooms(c *gin.Context) {
-	_, err := getCurrentUser()
+	_, err := getCurrentUser(c)
 	if err != nil {
 		c.JSON(401, gin.H{"error": "กรุณา login ก่อน"})
 		return
@@ -68,7 +55,7 @@ func getRooms(c *gin.Context) {
 
 // Handler: GET /rooms/:id
 func getRoomByID(c *gin.Context) {
-	_, err := getCurrentUser()
+	_, err := getCurrentUser(c)
 	if err != nil {
 		c.JSON(401, gin.H{"error": "กรุณา login ก่อน"})
 		return
@@ -86,7 +73,7 @@ func getRoomByID(c *gin.Context) {
 
 // Handler: POST /rooms
 func createRoom(c *gin.Context) {
-	user, err := getCurrentUser()
+	user, err := getCurrentUser(c)
 	if err != nil || user.Role != "admin" {
 		c.JSON(403, gin.H{"error": "เฉพาะ admin เท่านั้น"})
 		return
@@ -104,7 +91,7 @@ func createRoom(c *gin.Context) {
 
 // Handler: PATCH /rooms/:id
 func updateRoom(c *gin.Context) {
-	user, err := getCurrentUser()
+	user, err := getCurrentUser(c)
 	if err != nil || user.Role != "admin" {
 		c.JSON(403, gin.H{"error": "เฉพาะ admin เท่านั้น"})
 		return
@@ -128,7 +115,7 @@ func updateRoom(c *gin.Context) {
 
 // Handler: POST /rooms/:id/tenant
 func addTenantToRoom(c *gin.Context) {
-	user, err := getCurrentUser()
+	user, err := getCurrentUser(c)
 	if err != nil || user.Role != "admin" {
 		c.JSON(403, gin.H{"error": "เฉพาะ admin เท่านั้น"})
 		return
