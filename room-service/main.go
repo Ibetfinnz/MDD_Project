@@ -60,9 +60,9 @@ func getRoomByID(c *gin.Context) {
 		return
 	}
 
-	id := c.Param("id")
+	roomNumber := c.Param("id")
 	var room Room
-	if err := db.First(&room, id).Error; err != nil {
+	if err := db.Where("room_number = ?", roomNumber).First(&room).Error; err != nil {
 		c.JSON(404, gin.H{"error": "ไม่พบห้องพัก"})
 		return
 	}
@@ -96,9 +96,9 @@ func updateRoom(c *gin.Context) {
 		return
 	}
 
-	id := c.Param("id")
+	roomNumber := c.Param("id")
 	var room Room
-	if err := db.First(&room, id).Error; err != nil {
+	if err := db.Where("room_number = ?", roomNumber).First(&room).Error; err != nil {
 		c.JSON(404, gin.H{"error": "ไม่พบห้องพัก"})
 		return
 	}
@@ -120,9 +120,9 @@ func addTenantToRoom(c *gin.Context) {
 		return
 	}
 
-	id := c.Param("id")
+	roomNumber := c.Param("id")
 	var room Room
-	if err := db.First(&room, id).Error; err != nil {
+	if err := db.Where("room_number = ?", roomNumber).First(&room).Error; err != nil {
 		c.JSON(404, gin.H{"error": "ไม่พบห้องพัก"})
 		return
 	}
@@ -190,11 +190,11 @@ func main() {
 	// 3. ตั้งค่า CORS (สำคัญเพื่อให้เชื่อมต่อกับ Gateway/Frontend ได้)
 	r.Use(cors.Default())
 
-	r.GET("/rooms", getRooms)
-	r.GET("/rooms/:id", getRoomByID)
-	r.POST("/rooms", createRoom)
-	r.PATCH("/rooms/:id", updateRoom)
-	r.POST("/rooms/:id/tenant", addTenantToRoom)
+	r.GET("/", getRooms)
+	r.GET("/:id", getRoomByID)
+	r.POST("/", createRoom)
+	r.PATCH("/:id", updateRoom)
+	r.POST("/:id/tenant", addTenantToRoom)
 
 	log.Println("🚀 Room Service is running on port 8082...")
 	r.Run(":8082")

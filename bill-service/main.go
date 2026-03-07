@@ -297,10 +297,10 @@ func main() {
 	r := gin.Default()
 	r.Use(cors.Default())
 
-	r.GET("/Bill", getAllBills)
-	r.GET("/Bill/:room_id", getLatestBillByRoom)
-	r.POST("/Bill/:room_id", createBill)
-	r.PATCH("/Bill/:room_id", updateBill)
+	r.GET("/", getAllBills)
+	r.GET("/:room_id", getLatestBillByRoom)
+	r.POST("/:room_id", createBill)
+	r.PATCH("/:room_id", updateBill)
 
 	log.Println("🚀 Bill Service is running on port 8084...")
 	r.Run(":8084")
