@@ -9,13 +9,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
-	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"gorm.io/gorm"
 )
 
+// Bill represents rent and utility charges per room/month
 type Bill struct {
 	gorm.Model
 	RoomID        string  `json:"room_id"`
@@ -27,8 +28,7 @@ type Bill struct {
 	Status        string  `json:"status"`
 }
 
-// --------- ข้อมูลจาก service อื่น ---------
-
+// Data from other services
 type Room struct {
 	RoomNumber string  `json:"room_number"`
 	Price      float64 `json:"price"`
@@ -53,8 +53,7 @@ const (
 	electricRatePerUnit = 5.0  // ปรับเรทค่าไฟต่อหน่วยได้ตรงนี้
 )
 
-// ดึงข้อมูลห้องจาก room-service โดยเรียก endpoint /:id ตรง ๆ
-// และส่งต่อ header X-User-Name / X-User-Role ไปด้วย
+// fetchRoom gets room info from room-service and forwards user headers
 func fetchRoom(c *gin.Context, roomID string) (*Room, error) {
 	url := fmt.Sprintf("http://room-service:8082/%s", roomID)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -62,7 +61,6 @@ func fetchRoom(c *gin.Context, roomID string) (*Room, error) {
 		return nil, err
 	}
 
-	// ส่งต่อ identity ของ user ไปยัง service ปลายทาง โดยใช้ helper กลางจาก middleware
 	middleware.AttachUserHeaders(c, req)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -83,8 +81,7 @@ func fetchRoom(c *gin.Context, roomID string) (*Room, error) {
 	return &room, nil
 }
 
-// ดึงค่าน้ำล่าสุดจาก meter-service
-// และส่งต่อ header X-User-Name / X-User-Role ไปด้วย
+// fetchLatestWater gets latest water meter from meter-service
 func fetchLatestWater(c *gin.Context, roomID string) (*WaterMeter, error) {
 	url := fmt.Sprintf("http://meter-service:8083/water/%s", roomID)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -117,8 +114,7 @@ func fetchLatestWater(c *gin.Context, roomID string) (*WaterMeter, error) {
 	return &m, nil
 }
 
-// ดึงค่าไฟล่าสุดจาก meter-service
-// และส่งต่อ header X-User-Name / X-User-Role ไปด้วย
+// fetchLatestElectric gets latest electric meter from meter-service
 func fetchLatestElectric(c *gin.Context, roomID string) (*ElectricMeter, error) {
 	url := fmt.Sprintf("http://meter-service:8083/electric/%s", roomID)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
@@ -159,13 +155,13 @@ func connectDB() {
 	var err error
 	db, err = gorm.Open(sqlite.Open("bill.db"), &gorm.Config{})
 	if err != nil {
-		log.Fatal("❌ Failed to connect to bill database: ", err)
+		log.Fatal("Failed to connect to bill database: ", err)
 	}
-	log.Println("✅ Bill Database connected!")
+	log.Println("Bill database connected")
 	db.AutoMigrate(&Bill{})
 }
 
-// --- RabbitMQ Consumer ---
+// RabbitMQ consumer
 func connectRabbitMQ() {
 	rabbitURL := os.Getenv("RABBITMQ_URL")
 	if rabbitURL == "" {
@@ -175,14 +171,14 @@ func connectRabbitMQ() {
 	for {
 		conn, err := amqp.Dial(rabbitURL)
 		if err != nil {
-			log.Println("⚠️ Failed to connect to RabbitMQ, retry in 3s:", err)
+			log.Println("Failed to connect to RabbitMQ, retry in 3s:", err)
 			time.Sleep(3 * time.Second)
 			continue
 		}
 
 		ch, err := conn.Channel()
 		if err != nil {
-			log.Println("⚠️ Failed to open channel, retry in 3s:", err)
+			log.Println("Failed to open channel, retry in 3s:", err)
 			conn.Close()
 			time.Sleep(3 * time.Second)
 			continue
@@ -199,14 +195,14 @@ func connectRabbitMQ() {
 				nil,
 			)
 			if err != nil {
-				log.Println("⚠️ Failed to declare queue:", q, err)
+				log.Println("Failed to declare queue:", q, err)
 			}
 		}
 
 		rabbitConn = conn
 		rabbitCh = ch
 
-		log.Println("✅ Bill Service connected to RabbitMQ")
+		log.Println("Bill service connected to RabbitMQ")
 
 		go consumeMeterEvents("meter.water.created")
 		go consumeMeterEvents("meter.electric.created")
@@ -222,32 +218,31 @@ func consumeMeterEvents(queue string) {
 
 	msgs, err := rabbitCh.Consume(
 		queue,
-		"",    // consumer
-		true,   // autoAck (ง่ายๆสำหรับ demo)
-		false,  // exclusive
-		false,  // noLocal
-		false,  // noWait
-		nil,    // args
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil,
 	)
 	if err != nil {
-		log.Println("⚠️ Failed to register consumer for", queue, ":", err)
+		log.Println("Failed to register consumer for", queue, ":", err)
 		return
 	}
 
 	for msg := range msgs {
-		log.Printf("📥 Bill Service received from %s: %s\n", queue, string(msg.Body))
-		// ตรงนี้สามารถต่อยอดไปเขียนลง DB หรือ trigger logic อื่นได้
+		log.Printf("Bill Service received from %s: %s\n", queue, string(msg.Body))
 	}
 }
 
-// Handler: GET /Bill - ดูบิลทั้งหมดของทุกห้อง
+// GET /Bill
 func getAllBills(c *gin.Context) {
 	var bills []Bill
 	db.Find(&bills)
 	c.JSON(200, bills)
 }
 
-// Handler: GET /Bill/:room_id - ดูบิลล่าสุดของห้องนั้น
+// GET /Bill/:room_id
 func getLatestBillByRoom(c *gin.Context) {
 	roomID := c.Param("room_id")
 
@@ -278,7 +273,7 @@ func getLatestBillByRoom(c *gin.Context) {
 	c.JSON(200, bill)
 }
 
-// Handler: POST /Bill/:room_id - สร้างบิลค่าเช่าใหม่
+// POST /Bill/:room_id
 func createBill(c *gin.Context) {
 	roomID := c.Param("room_id")
 	var bill Bill
@@ -287,14 +282,12 @@ func createBill(c *gin.Context) {
 	bill.RoomID = roomID
 	bill.Month = time.Now().Format("2006-01")
 
-	// --- ดึงค่าเช่าจาก room-service ---
 	if room, err := fetchRoom(c, roomID); err == nil {
 		bill.RentPrice = room.Price
 	} else {
 		log.Println("⚠️ fetchRoom error:", err)
 	}
 
-	// --- ดึงค่าน้ำ/ค่าไฟจาก meter-service แล้วคำนวณราคา ---
 	if water, err := fetchLatestWater(c, roomID); err == nil {
 		bill.WaterPrice = water.Unit * waterRatePerUnit
 	} else {
@@ -307,7 +300,6 @@ func createBill(c *gin.Context) {
 		log.Println("⚠️ fetchLatestElectric error:", err)
 	}
 
-	// รวมยอด
 	bill.Total = bill.RentPrice + bill.WaterPrice + bill.ElectricPrice
 	if bill.Status == "" {
 		bill.Status = "Unpaid"
@@ -320,7 +312,7 @@ func createBill(c *gin.Context) {
 	c.JSON(201, bill)
 }
 
-// Handler: PATCH /Bill/:room_id - แก้ไขสถานะการจ่ายเงิน หรือยอดเงิน
+// PATCH /Bill/:room_id
 func updateBill(c *gin.Context) {
 	roomID := c.Param("room_id")
 	var bill Bill
@@ -345,10 +337,10 @@ func main() {
 	authorized := r.Group("/")
 	authorized.Use(middleware.RequireUser())
 	{
-		// สำหรับ user ทั่วไป (เช่น tenant) ดูบิลของห้องตัวเองได้
+		// Tenant endpoints
 		authorized.GET("/:room_id", getLatestBillByRoom)
 
-		// เฉพาะ admin ที่จัดการบิลทุกห้องได้
+		// Admin endpoints
 		admin := authorized.Group("/")
 		admin.Use(middleware.RequireAdmin())
 		{
@@ -358,6 +350,6 @@ func main() {
 		}
 	}
 
-	log.Println("🚀 Bill Service is running on port 8084...")
+	log.Println("Bill Service is running on port 8084")
 	r.Run(":8084")
 }

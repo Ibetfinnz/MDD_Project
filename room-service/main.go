@@ -3,13 +3,13 @@ package main
 import (
 	"log"
 
+	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
-	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
 	"gorm.io/gorm"
 )
 
-// 1. โครงสร้างข้อมูล Room (Data Model)
+// Room model
 type Room struct {
 	gorm.Model
 	RoomNumber string  `json:"room_number" gorm:"unique"`
@@ -20,14 +20,14 @@ type Room struct {
 
 var db *gorm.DB
 
-// Handler: GET /rooms
+// GET /rooms
 func getRooms(c *gin.Context) {
 	var rooms []Room
 	db.Find(&rooms)
 	c.JSON(200, rooms)
 }
 
-// Handler: GET /rooms/:id
+// GET /rooms/:id
 func getRoomByID(c *gin.Context) {
 	roomNumber := c.Param("id")
 	var room Room
@@ -39,7 +39,7 @@ func getRoomByID(c *gin.Context) {
 	c.JSON(200, room)
 }
 
-// Handler: POST /rooms
+// POST /rooms
 func createRoom(c *gin.Context) {
 	var room Room
 	if err := c.ShouldBindJSON(&room); err != nil {
@@ -51,7 +51,7 @@ func createRoom(c *gin.Context) {
 	c.JSON(201, room)
 }
 
-// Handler: PATCH /rooms/:id
+// PATCH /rooms/:id
 func updateRoom(c *gin.Context) {
 	roomNumber := c.Param("id")
 	var room Room
@@ -69,7 +69,7 @@ func updateRoom(c *gin.Context) {
 	})
 }
 
-// Handler: POST /rooms/:id/tenant
+// POST /rooms/:id/tenant
 func addTenantToRoom(c *gin.Context) {
 	roomNumber := c.Param("id")
 	var room Room
@@ -94,7 +94,7 @@ func addTenantToRoom(c *gin.Context) {
 	})
 }
 
-// 2. ฟังก์ชันเชื่อมต่อฐานข้อมูล
+// Connect to database
 func connectDB() {
 	var err error
 	db, err = gorm.Open(sqlite.Open("room.db"), &gorm.Config{})
@@ -104,7 +104,7 @@ func connectDB() {
 
 	log.Println("✅ Room Database connected!")
 
-	// AutoMigrate โครงสร้างใหม่
+	// Auto migrate schema
 	err = db.AutoMigrate(&Room{})
 	if err != nil {
 		log.Fatal("❌ Migration failed: ", err)
@@ -112,12 +112,12 @@ func connectDB() {
 
 	log.Println("✅ AutoMigrate completed!")
 
-	// Seed ถ้ายังไม่มีข้อมูล
+	// Seed initial data if empty
 	var count int64
 	db.Model(&Room{}).Count(&count)
 
 	if count == 0 {
-		log.Println("🌱 Seeding initial room data...")
+		log.Println("Seeding initial room data...")
 
 		rooms := []Room{
 			{RoomNumber: "101", Price: 3500, Status: "Occupied", TenantName: "tenant1"},
@@ -129,7 +129,7 @@ func connectDB() {
 			db.Create(&room)
 		}
 
-		log.Println("✅ Seed data inserted!")
+		log.Println("Seed data inserted")
 	}
 }
 
@@ -138,15 +138,14 @@ func main() {
 
 	r := gin.Default()
 
-	// กลุ่มสำหรับทุก endpoint ที่ต้อง login แล้ว
+	// Protected endpoints (login required)
 	authorized := r.Group("/")
 	authorized.Use(middleware.RequireUser())
 	{
-		// สิทธิ์ของ user ทั่วไป (เช่น tenant) ดูรายการห้อง/รายละเอียดห้องได้
 		authorized.GET("/", getRooms)
 		authorized.GET("/:id", getRoomByID)
 
-		// กลุ่มที่ต้องเป็น admin เท่านั้น
+		// Admin endpoints
 		admin := authorized.Group("/")
 		admin.Use(middleware.RequireAdmin())
 		{
@@ -156,6 +155,6 @@ func main() {
 		}
 	}
 
-	log.Println("🚀 Room Service is running on port 8082...")
+	log.Println("Room Service is running on port 8082")
 	r.Run(":8082")
 }

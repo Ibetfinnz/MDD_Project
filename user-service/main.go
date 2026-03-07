@@ -4,13 +4,12 @@ import (
 	"log"
 	"time"
 
-	"github.com/glebarez/sqlite"
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"github.com/Ibetfinnz/MDD_Project/auth"
 	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
+	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
 )
-
 
 type User struct {
 	gorm.Model

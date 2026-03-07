@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/Ibetfinnz/MDD_Project/auth"
+	"github.com/gin-gonic/gin"
 )
 
 type CurrentUser struct {
@@ -14,8 +14,7 @@ type CurrentUser struct {
 	Role     string `json:"role"`
 }
 
-// AttachUserHeaders แนบข้อมูล user ปัจจุบันลงใน request สำหรับเรียก service อื่น
-// อ่านข้อมูลจาก GetCurrentUser เพียงจุดเดียว เพื่อไม่ต้องไป get header ซ้ำในทุก service
+// AttachUserHeaders adds current user info into outgoing request headers
 func AttachUserHeaders(c *gin.Context, req *http.Request) {
 	user, err := GetCurrentUser(c)
 	if err != nil {
@@ -26,7 +25,7 @@ func AttachUserHeaders(c *gin.Context, req *http.Request) {
 	req.Header.Set("X-User-Role", user.Role)
 }
 
-// GetCurrentUser อ่าน user ปัจจุบันจาก header ที่ Gateway ใส่ให้ (X-User-Name / X-User-Role)
+// GetCurrentUser reads the current user from gateway headers
 func GetCurrentUser(c *gin.Context) (*CurrentUser, error) {
 	username := c.GetHeader("X-User-Name")
 	role := c.GetHeader("X-User-Role")
@@ -40,7 +39,7 @@ func GetCurrentUser(c *gin.Context) (*CurrentUser, error) {
 	}, nil
 }
 
-// RequireUser เป็น Gin middleware ที่บังคับให้ต้องมี user (ต้อง login แล้ว)
+// RequireUser ensures the request has a logged-in user
 func RequireUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, err := GetCurrentUser(c)
@@ -56,7 +55,7 @@ func RequireUser() gin.HandlerFunc {
 	}
 }
 
-// RequireAdmin เป็น Gin middleware ที่บังคับให้ต้องเป็น admin เท่านั้น
+// RequireAdmin allows only admin users
 func RequireAdmin() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, err := GetCurrentUser(c)
@@ -79,7 +78,7 @@ func RequireAdmin() gin.HandlerFunc {
 	}
 }
 
-// JWTMiddleware ใช้ตรวจสอบ JWT จาก header Authorization แล้วใส่ username, role ลงใน context
+// JWTMiddleware validates JWT from Authorization header and sets user in context
 func JWTMiddleware(cfg *auth.AuthConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 

@@ -6,13 +6,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
-	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"gorm.io/gorm"
 )
 
+// WaterMeter represents water usage per room/month
 type WaterMeter struct {
 	gorm.Model
 	RoomID string  `json:"room_id"`
@@ -20,6 +21,7 @@ type WaterMeter struct {
 	Month  string  `json:"month"`
 }
 
+// ElectricMeter represents electricity usage per room/month
 type ElectricMeter struct {
 	gorm.Model
 	RoomID string  `json:"room_id"`
@@ -35,13 +37,13 @@ func connectDB() {
 	var err error
 	db, err = gorm.Open(sqlite.Open("meter.db"), &gorm.Config{})
 	if err != nil {
-		log.Fatal("❌ Failed to connect to meter database: ", err)
+		log.Fatal("Failed to connect to meter database: ", err)
 	}
-	log.Println("✅ Meter Database connected!")
+	log.Println("Meter database connected")
 	db.AutoMigrate(&WaterMeter{}, &ElectricMeter{})
 }
 
-// --- RabbitMQ Setup ---
+// RabbitMQ setup
 func connectRabbitMQ() {
 	rabbitURL := os.Getenv("RABBITMQ_URL")
 	if rabbitURL == "" {
@@ -51,53 +53,51 @@ func connectRabbitMQ() {
 	for {
 		conn, err := amqp.Dial(rabbitURL)
 		if err != nil {
-			log.Println("⚠️ Failed to connect to RabbitMQ, retry in 3s:", err)
+			log.Println("Failed to connect to RabbitMQ, retry in 3s:", err)
 			time.Sleep(3 * time.Second)
 			continue
 		}
 
 		ch, err := conn.Channel()
 		if err != nil {
-			log.Println("⚠️ Failed to open channel, retry in 3s:", err)
+			log.Println("Failed to open channel, retry in 3s:", err)
 			conn.Close()
 			time.Sleep(3 * time.Second)
 			continue
 		}
 
-		// Simple durable queues for water & electric events
 		queues := []string{"meter.water.created", "meter.electric.created"}
 		for _, q := range queues {
 			_, err = ch.QueueDeclare(
 				q,
-				true,  // durable
-				false, // autoDelete
-				false, // exclusive
-				false, // noWait
-				nil,   // args
+				true,
+				false,
+				false,
+				false,
+				nil,
 			)
 			if err != nil {
-				log.Println("⚠️ Failed to declare queue:", q, err)
+				log.Println("Failed to declare queue:", q, err)
 			}
 		}
 
 		rabbitConn = conn
 		rabbitCh = ch
 
-		log.Println("✅ Meter Service connected to RabbitMQ")
+		log.Println("Meter service connected to RabbitMQ")
 		break
 	}
 }
 
 func publishEvent(queue string, payload any) {
 	if rabbitCh == nil {
-		// ถ้า RabbitMQ ใช้งานไม่ได้ ก็แค่ log แล้วข้าม (ไม่ให้ล้ม service)
-		log.Println("⚠️ RabbitMQ channel not ready, skip publish to", queue)
+		log.Println("RabbitMQ channel not ready, skip publish to", queue)
 		return
 	}
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		log.Println("⚠️ Failed to marshal event:", err)
+		log.Println("Failed to marshal event:", err)
 		return
 	}
 
@@ -113,13 +113,13 @@ func publishEvent(queue string, payload any) {
 		},
 	)
 	if err != nil {
-		log.Println("⚠️ Failed to publish event to", queue, ":", err)
+		log.Println("Failed to publish event to", queue, ":", err)
 	} else {
-		log.Println("📨 Published event to", queue)
+		log.Println("Published event to", queue)
 	}
 }
 
-// Handler: GET /water - ดูประวัติการจดมิเตอร์น้ำทั้งหมด
+// GET /water
 func getAllWaterMeters(c *gin.Context) {
 	_, err := middleware.GetCurrentUser(c)
 	if err != nil {
@@ -132,7 +132,7 @@ func getAllWaterMeters(c *gin.Context) {
 	c.JSON(200, meters)
 }
 
-// Handler: GET /water/:room_id - ดูมิเตอร์น้ำล่าสุดของห้อง
+// GET /water/:room_id
 func getWaterMeterByRoom(c *gin.Context) {
 	_, err := middleware.GetCurrentUser(c)
 	if err != nil {
@@ -146,7 +146,7 @@ func getWaterMeterByRoom(c *gin.Context) {
 	c.JSON(200, meter)
 }
 
-// Handler: POST /water - บันทึกมิเตอร์น้ำใหม่
+// POST /water
 func createWaterMeter(c *gin.Context) {
 	user, err := middleware.GetCurrentUser(c)
 	if err != nil {
@@ -167,20 +167,19 @@ func createWaterMeter(c *gin.Context) {
 	meter.Month = time.Now().Format("2006-01")
 	db.Create(&meter)
 
-	// publish event ไป RabbitMQ (async)
 	publishEvent("meter.water.created", meter)
 
 	c.JSON(201, meter)
 }
 
-// Handler: GET /electric - ดูประวัติการจดมิเตอร์ไฟทั้งหมด
+// GET /electric
 func getAllElectricMeters(c *gin.Context) {
 	var meters []ElectricMeter
 	db.Find(&meters)
 	c.JSON(200, meters)
 }
 
-// Handler: GET /electric/:room_id - ดูมิเตอร์ไฟล่าสุดของห้อง
+// GET /electric/:room_id
 func getElectricMeterByRoom(c *gin.Context) {
 	roomID := c.Param("room_id")
 	var meter ElectricMeter
@@ -188,7 +187,7 @@ func getElectricMeterByRoom(c *gin.Context) {
 	c.JSON(200, meter)
 }
 
-// Handler: POST /electric - บันทึกมิเตอร์ไฟใหม่
+// POST /electric
 func createElectricMeter(c *gin.Context) {
 	var meter ElectricMeter
 	if err := c.ShouldBindJSON(&meter); err != nil {
@@ -198,7 +197,6 @@ func createElectricMeter(c *gin.Context) {
 	meter.Month = time.Now().Format("2006-01")
 	db.Create(&meter)
 
-	// publish event ไป RabbitMQ (async)
 	publishEvent("meter.electric.created", meter)
 
 	c.JSON(201, meter)
@@ -213,15 +211,12 @@ func main() {
 	authorized := r.Group("/")
 	authorized.Use(middleware.RequireUser())
 	{
-		// --- WATER METER --- (ต้อง login ทุกคน)
 		authorized.GET("/water", getAllWaterMeters)
 		authorized.GET("/water/:room_id", getWaterMeterByRoom)
-
-		// --- ELECTRIC METER --- (ต้อง login ทุกคน)
 		authorized.GET("/electric", getAllElectricMeters)
 		authorized.GET("/electric/:room_id", getElectricMeterByRoom)
 
-		// กลุ่ม admin สำหรับสร้างข้อมูลมิเตอร์
+		// Admin endpoints for creating meter data
 		admin := authorized.Group("/")
 		admin.Use(middleware.RequireAdmin())
 		{
@@ -230,6 +225,6 @@ func main() {
 		}
 	}
 
-	log.Println("🚀 Meter Service is running on port 8083...")
+	log.Println("Meter Service is running on port 8083")
 	r.Run(":8083")
 }

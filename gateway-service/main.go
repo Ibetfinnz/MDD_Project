@@ -8,34 +8,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sony/gobreaker"
 	"github.com/Ibetfinnz/MDD_Project/auth"
+	"github.com/sony/gobreaker"
 )
 
-// ฟังก์ชันสำหรับจัดการ CORS (เปิดประตูให้ Frontend)
-func enableCORS(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// อนุญาตให้ทุก Domain เข้าถึงได้ (หรือระบุ http://localhost:5173 ก็ได้ครับ)
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		// ถ้าเป็นคำสั่ง OPTIONS (ที่เบราว์เซอร์ยิงมาเช็คก่อน) ให้ตอบกลับ 200 ทันที
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
-// authMiddleware ตรวจสอบ JWT ที่ Gateway เพียงจุดเดียว แล้วส่ง username/role ต่อไปยัง service อื่นผ่าน header
+// authMiddleware validates JWT once at the gateway and forwards user info
 func authMiddleware(next http.Handler) http.Handler {
 	authCfg := auth.NewAuthConfig("super-secret-key")
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// ปล่อยให้ OPTIONS ผ่าน (สำหรับ CORS preflight)
 		if r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
 			return
@@ -43,7 +24,7 @@ func authMiddleware(next http.Handler) http.Handler {
 
 		path := r.URL.Path
 
-		// ปล่อย endpoint ที่ไม่ต้อง auth เช่น login ไว้
+		// Public endpoints that bypass auth
 		if strings.HasPrefix(path, "/api/users/login") || path == "/" {
 			next.ServeHTTP(w, r)
 			return
@@ -142,8 +123,8 @@ func main() {
 	mux.Handle("/api/rooms/", http.StripPrefix("/api/rooms/", setupProxy("http://room-service:8082", "room-service")))
 	mux.Handle("/api/meters/", http.StripPrefix("/api/meters/", setupProxy("http://meter-service:8083", "meter-service")))
 	mux.Handle("/api/bills/", http.StripPrefix("/api/bills/", setupProxy("http://bill-service:8084", "bill-service")))
-	log.Println("🚀 API Gateway with CORS is running on port 8080...")
+	log.Println("🚀 API Gateway is running on port 8080...")
 
-	// รัน Server โดยครอบด้วย Middleware CORS ที่เราสร้างไว้
-	log.Fatal(http.ListenAndServe(":8080", enableCORS(authMiddleware(mux))))
+	// รัน Server โดยครอบด้วย Middleware ตรวจสอบ JWT ที่ Gateway
+	log.Fatal(http.ListenAndServe(":8080", authMiddleware(mux)))
 }
