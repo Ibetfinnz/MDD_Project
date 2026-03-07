@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -43,36 +44,49 @@ func connectDB() {
 
 // --- RabbitMQ Setup ---
 func connectRabbitMQ() {
-	var err error
-	rabbitConn, err = amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
-	if err != nil {
-		log.Println("⚠️ Failed to connect to RabbitMQ:", err)
-		return
+	rabbitURL := os.Getenv("RABBITMQ_URL")
+	if rabbitURL == "" {
+		rabbitURL = "amqp://guest:guest@rabbitmq:5672/"
 	}
 
-	rabbitCh, err = rabbitConn.Channel()
-	if err != nil {
-		log.Println("⚠️ Failed to open channel:", err)
-		return
-	}
-
-	// Simple durable queues for water & electric events
-	queues := []string{"meter.water.created", "meter.electric.created"}
-	for _, q := range queues {
-		_, err = rabbitCh.QueueDeclare(
-			q,
-			true,  // durable
-			false, // autoDelete
-			false, // exclusive
-			false, // noWait
-			nil,   // args
-		)
+	for {
+		conn, err := amqp.Dial(rabbitURL)
 		if err != nil {
-			log.Println("⚠️ Failed to declare queue:", q, err)
+			log.Println("⚠️ Failed to connect to RabbitMQ, retry in 3s:", err)
+			time.Sleep(3 * time.Second)
+			continue
 		}
-	}
 
-	log.Println("✅ Meter Service connected to RabbitMQ")
+		ch, err := conn.Channel()
+		if err != nil {
+			log.Println("⚠️ Failed to open channel, retry in 3s:", err)
+			conn.Close()
+			time.Sleep(3 * time.Second)
+			continue
+		}
+
+		// Simple durable queues for water & electric events
+		queues := []string{"meter.water.created", "meter.electric.created"}
+		for _, q := range queues {
+			_, err = ch.QueueDeclare(
+				q,
+				true,  // durable
+				false, // autoDelete
+				false, // exclusive
+				false, // noWait
+				nil,   // args
+			)
+			if err != nil {
+				log.Println("⚠️ Failed to declare queue:", q, err)
+			}
+		}
+
+		rabbitConn = conn
+		rabbitCh = ch
+
+		log.Println("✅ Meter Service connected to RabbitMQ")
+		break
+	}
 }
 
 func publishEvent(queue string, payload any) {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -170,38 +171,52 @@ func connectDB() {
 
 // --- RabbitMQ Consumer ---
 func connectRabbitMQ() {
-	var err error
-	rabbitConn, err = amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
-	if err != nil {
-		log.Println("⚠️ Failed to connect to RabbitMQ:", err)
-		return
+	rabbitURL := os.Getenv("RABBITMQ_URL")
+	if rabbitURL == "" {
+		rabbitURL = "amqp://guest:guest@rabbitmq:5672/"
 	}
 
-	rabbitCh, err = rabbitConn.Channel()
-	if err != nil {
-		log.Println("⚠️ Failed to open channel:", err)
-		return
-	}
-
-	queues := []string{"meter.water.created", "meter.electric.created"}
-	for _, q := range queues {
-		_, err = rabbitCh.QueueDeclare(
-			q,
-			true,
-			false,
-			false,
-			false,
-			nil,
-		)
+	for {
+		conn, err := amqp.Dial(rabbitURL)
 		if err != nil {
-			log.Println("⚠️ Failed to declare queue:", q, err)
+			log.Println("⚠️ Failed to connect to RabbitMQ, retry in 3s:", err)
+			time.Sleep(3 * time.Second)
+			continue
 		}
+
+		ch, err := conn.Channel()
+		if err != nil {
+			log.Println("⚠️ Failed to open channel, retry in 3s:", err)
+			conn.Close()
+			time.Sleep(3 * time.Second)
+			continue
+		}
+
+		queues := []string{"meter.water.created", "meter.electric.created"}
+		for _, q := range queues {
+			_, err = ch.QueueDeclare(
+				q,
+				true,
+				false,
+				false,
+				false,
+				nil,
+			)
+			if err != nil {
+				log.Println("⚠️ Failed to declare queue:", q, err)
+			}
+		}
+
+		rabbitConn = conn
+		rabbitCh = ch
+
+		log.Println("✅ Bill Service connected to RabbitMQ")
+
+		go consumeMeterEvents("meter.water.created")
+		go consumeMeterEvents("meter.electric.created")
+
+		break
 	}
-
-	log.Println("✅ Bill Service connected to RabbitMQ")
-
-	go consumeMeterEvents("meter.water.created")
-	go consumeMeterEvents("meter.electric.created")
 }
 
 func consumeMeterEvents(queue string) {
