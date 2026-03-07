@@ -24,6 +24,10 @@ services:
     container_name: mdd_meter_service
     ports:
       - "8083:8083"
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
 
   # 4. bill-service
   bill-service:
@@ -33,6 +37,10 @@ services:
     container_name: mdd_bill_service
     ports:
       - "8084:8084"
+    environment:
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      - rabbitmq
 
   # 5. Gateway Service
   gateway-service:
