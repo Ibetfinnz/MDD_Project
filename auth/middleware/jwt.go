@@ -26,20 +26,8 @@ func AttachUserHeaders(c *gin.Context, req *http.Request) {
 	req.Header.Set("X-User-Role", user.Role)
 }
 
-// GetCurrentUser อ่าน user จาก gin context
+// GetCurrentUser อ่าน user ปัจจุบันจาก header ที่ Gateway ใส่ให้ (X-User-Name / X-User-Role)
 func GetCurrentUser(c *gin.Context) (*CurrentUser, error) {
-	// 1) ลองอ่านจาก Gin context ก่อน (กรณีผ่าน JWTMiddleware)
-	if usernameVal, userExists := c.Get("username"); userExists {
-		if roleVal, roleExists := c.Get("role"); roleExists {
-			username, ok1 := usernameVal.(string)
-			role, ok2 := roleVal.(string)
-			if ok1 && ok2 {
-				return &CurrentUser{Username: username, Role: role}, nil
-			}
-		}
-	}
-
-	// 2) fallback: อ่านจาก header ที่ Gateway ใส่ให้ (X-User-Name / X-User-Role)
 	username := c.GetHeader("X-User-Name")
 	role := c.GetHeader("X-User-Role")
 	if username == "" || role == "" {
