@@ -232,10 +232,6 @@ func getLatestBillByRoom(c *gin.Context) {
 func createBill(c *gin.Context) {
 	roomID := c.Param("room_id")
 	var bill Bill
-	if err := c.ShouldBindJSON(&bill); err != nil {
-		c.JSON(400, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
-		return
-	}
 
 	// ผูก room_id ให้ชัดเจน
 	bill.RoomID = roomID
