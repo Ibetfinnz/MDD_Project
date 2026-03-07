@@ -7,7 +7,7 @@
 
 ## 🏗️ System Architecture
 ระบบประกอบด้วย 5 บริการหลักที่ทำงานเชื่อมต่อกันผ่าน API Gateway:
-1. **Gateway Service (Port 8080):** ประตูหน้าด่าน (Reverse Proxy) ทำหน้าที่รวม API ทุกตัวและจัดการ CORS
+1. **Gateway Service (Port 8080):** ประตูหน้าด่าน (Reverse Proxy) รวม API ทุกตัว ตรวจสอบ JWT แล้วส่งต่อข้อมูลผู้ใช้ให้แต่ละ Service
 2. **User Service (Port 8081):** จัดการข้อมูลผู้ใช้งาน (Admin/Staff) และระบบ Login
 3. **Room Service (Port 8082):** จัดการข้อมูลห้องพัก สถานะห้อง และข้อมูลผู้เช่า
 4. **Meter Service (Port 8083):** จัดการจดบันทึกมิเตอร์น้ำและไฟรายเดือน
@@ -98,41 +98,41 @@ docker-compose up --build
 
 ### 2. Room Service (`/api/rooms`)
 
-จัดการข้อมูลห้องพัก (ต้อง Login ก่อนใช้งาน)
+จัดการข้อมูลห้องพัก (ต้อง Login ก่อนใช้งาน ผ่าน Gateway)
 
 | Feature | Method | Endpoint | Request Body (JSON) | Role |
 | --- | --- | --- | --- | --- |
-| **Get All Rooms** | `GET` | `/rooms` | - | Any |
-| **Get Room Detail** | `GET` | `/rooms/:id` | - | Any |
-| **Create Room** | `POST` | `/rooms` | `{"room_number": "301", "price": 5000, "status": "Available"}` | **Admin** |
-| **Update Room** | `PATCH` | `/rooms/:id` | `{"price": 5500}` | **Admin** |
-| **Add Tenant** | `POST` | `/rooms/:id/tenant` | `{"tenant_name": "Somchai"}` | **Admin** |
+| **Get All Rooms** | `GET` | `/api/rooms/` | - | Any (ต้อง Login) |
+| **Get Room Detail** | `GET` | `/api/rooms/:id` | - | Any (ต้อง Login) |
+| **Create Room** | `POST` | `/api/rooms/` | `{"room_number": "301", "price": 5000, "status": "Available"}` | **Admin** |
+| **Update Room** | `PATCH` | `/api/rooms/:id` | `{"price": 5500}` | **Admin** |
+| **Add Tenant** | `POST` | `/api/rooms/:id/tenant` | `{"tenant_name": "Somchai"}` | **Admin** |
 
 ---
 
 ### 3. Meter Service (`/api/meters`)
 
-บันทึกและดูประวัติการใช้ค่าน้ำ-ค่าไฟ
+บันทึกและดูประวัติการใช้ค่าน้ำ-ค่าไฟ (ต้อง Login ผ่าน Gateway)
 
-| Feature | Method | Endpoint | Request Body (JSON) | Description |
+| Feature | Method | Endpoint | Request Body (JSON) | Role / Description |
 | --- | --- | --- | --- | --- |
-| **Record Water** | `POST` | `/water` | `{"room_id": "101", "unit": 15.5}` | บันทึกมิเตอร์น้ำล่าสุด |
-| **Record Electric** | `POST` | `/electric` | `{"room_id": "101", "unit": 120.0}` | บันทึกมิเตอร์ไฟล่าสุด |
-| **Water History** | `GET` | `/water/:room_id` | - | ดูหน่วยน้ำล่าสุดของห้องนั้น |
-| **Electric History** | `GET` | `/electric/:room_id` | - | ดูหน่วยไฟล่าสุดของห้องนั้น |
+| **Record Water** | `POST` | `/api/meters/water` | `{"room_id": "101", "unit": 15.5}` | **Admin** บันทึกมิเตอร์น้ำล่าสุด |
+| **Record Electric** | `POST` | `/api/meters/electric` | `{"room_id": "101", "unit": 120.0}` | **Admin** บันทึกมิเตอร์ไฟล่าสุด |
+| **Water History** | `GET` | `/api/meters/water/:room_id` | - | ผู้ใช้ที่ Login แล้วดูหน่วยน้ำล่าสุดของห้องนั้น |
+| **Electric History** | `GET` | `/api/meters/electric/:room_id` | - | ผู้ใช้ที่ Login แล้วดูหน่วยไฟล่าสุดของห้องนั้น |
 
 ---
 
 ### 4. Bill Service (`/api/bills`)
 
-สรุปค่าใช้จ่ายประจำเดือน (ดึงข้อมูลจาก Room และ Meter Service)
+สรุปค่าใช้จ่ายประจำเดือน (ดึงข้อมูลจาก Room และ Meter Service ผ่าน Gateway)
 
-| Feature | Method | Endpoint | Request Body (JSON) | Description |
+| Feature | Method | Endpoint | Request Body (JSON) | Role / Description |
 | --- | --- | --- | --- | --- |
-| **Create Bill** | `POST` | `/Bill/:room_id` | `{"status": "Unpaid"}` | ระบบจะคำนวณเงินรวมให้อัตโนมัติ |
-| **Get Latest Bill** | `GET` | `/Bill/:room_id` | - | ดูข้อมูลบิลล่าสุดของห้อง |
-| **Get All Bills** | `GET` | `/Bill/` | - | ดูรายการบิลทั้งหมดที่มีในระบบ |
-| **Update Status** | `PATCH` | `/Bill/:room_id` | `{"status": "Paid"}` | อัปเดตสถานะการจ่ายเงิน |
+| **Create Bill** | `POST` | `/api/bills/:room_id` | `{"status": "Unpaid"}` | **Admin** สร้างบิลใหม่ ระบบคำนวณยอดรวมให้อัตโนมัติ |
+| **Get Latest Bill** | `GET` | `/api/bills/:room_id` | - | ผู้เช่าดูบิลของห้องตัวเอง หรือ Admin ดูได้ทุกห้อง |
+| **Get All Bills** | `GET` | `/api/bills/` | - | **Admin** ดูรายการบิลทั้งหมด |
+| **Update Status** | `PATCH` | `/api/bills/:room_id` | `{"status": "Paid"}` | **Admin** อัปเดตสถานะการจ่ายเงิน |
 
 ---
 
