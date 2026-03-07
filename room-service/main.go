@@ -1,12 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
 	"gorm.io/gorm"
 )
 
@@ -19,34 +19,10 @@ type Room struct {
 	TenantName string  `json:"tenant_name"` // ว่างได้ถ้ายังไม่มีผู้เช่า
 }
 
-type CurrentUser struct {
-	Username string `json:"username"`
-	Role     string `json:"role"`
-}
-
 var db *gorm.DB
-
-func getCurrentUser(c *gin.Context) (*CurrentUser, error) {
-	username := c.GetHeader("X-User-Name")
-	role := c.GetHeader("X-User-Role")
-	if username == "" || role == "" {
-		return nil, fmt.Errorf("not authorized")
-	}
-
-	return &CurrentUser{
-		Username: username,
-		Role:     role,
-	}, nil
-}
 
 // Handler: GET /rooms
 func getRooms(c *gin.Context) {
-	_, err := getCurrentUser(c)
-	if err != nil {
-		c.JSON(401, gin.H{"error": "กรุณา login ก่อน"})
-		return
-	}
-
 	var rooms []Room
 	db.Find(&rooms)
 	c.JSON(200, rooms)
@@ -54,12 +30,6 @@ func getRooms(c *gin.Context) {
 
 // Handler: GET /rooms/:id
 func getRoomByID(c *gin.Context) {
-	_, err := getCurrentUser(c)
-	if err != nil {
-		c.JSON(401, gin.H{"error": "กรุณา login ก่อน"})
-		return
-	}
-
 	roomNumber := c.Param("id")
 	var room Room
 	if err := db.Where("room_number = ?", roomNumber).First(&room).Error; err != nil {
@@ -72,12 +42,6 @@ func getRoomByID(c *gin.Context) {
 
 // Handler: POST /rooms
 func createRoom(c *gin.Context) {
-	user, err := getCurrentUser(c)
-	if err != nil || user.Role != "admin" {
-		c.JSON(403, gin.H{"error": "เฉพาะ admin เท่านั้น"})
-		return
-	}
-
 	var room Room
 	if err := c.ShouldBindJSON(&room); err != nil {
 		c.JSON(400, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
@@ -90,12 +54,6 @@ func createRoom(c *gin.Context) {
 
 // Handler: PATCH /rooms/:id
 func updateRoom(c *gin.Context) {
-	user, err := getCurrentUser(c)
-	if err != nil || user.Role != "admin" {
-		c.JSON(403, gin.H{"error": "เฉพาะ admin เท่านั้น"})
-		return
-	}
-
 	roomNumber := c.Param("id")
 	var room Room
 	if err := db.Where("room_number = ?", roomNumber).First(&room).Error; err != nil {
@@ -114,12 +72,6 @@ func updateRoom(c *gin.Context) {
 
 // Handler: POST /rooms/:id/tenant
 func addTenantToRoom(c *gin.Context) {
-	user, err := getCurrentUser(c)
-	if err != nil || user.Role != "admin" {
-		c.JSON(403, gin.H{"error": "เฉพาะ admin เท่านั้น"})
-		return
-	}
-
 	roomNumber := c.Param("id")
 	var room Room
 	if err := db.Where("room_number = ?", roomNumber).First(&room).Error; err != nil {
@@ -187,14 +139,19 @@ func main() {
 
 	r := gin.Default()
 
-	// 3. ตั้งค่า CORS (สำคัญเพื่อให้เชื่อมต่อกับ Gateway/Frontend ได้)
-	r.Use(cors.Default())
+	// 3. ตั้งค่า CORS และบังคับให้ทุก request ต้องมี user (login แล้ว)
+	r.Use(cors.Default(), middleware.RequireUser())
 
 	r.GET("/", getRooms)
 	r.GET("/:id", getRoomByID)
-	r.POST("/", createRoom)
-	r.PATCH("/:id", updateRoom)
-	r.POST("/:id/tenant", addTenantToRoom)
+
+	admin := r.Group("/")
+	admin.Use(middleware.RequireAdmin())
+	{
+		admin.POST("/", createRoom)
+		admin.PATCH("/:id", updateRoom)
+		admin.POST("/:id/tenant", addTenantToRoom)
+	}
 
 	log.Println("🚀 Room Service is running on port 8082...")
 	r.Run(":8082")

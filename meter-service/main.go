@@ -8,6 +8,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"gorm.io/gorm"
 )
@@ -107,6 +108,12 @@ func publishEvent(queue string, payload any) {
 
 // Handler: GET /water - ดูประวัติการจดมิเตอร์น้ำทั้งหมด
 func getAllWaterMeters(c *gin.Context) {
+	_, err := middleware.GetCurrentUser(c)
+	if err != nil {
+		c.JSON(401, gin.H{"error": "กรุณา login ก่อน"})
+		return
+	}
+
 	var meters []WaterMeter
 	db.Find(&meters)
 	c.JSON(200, meters)
@@ -114,6 +121,12 @@ func getAllWaterMeters(c *gin.Context) {
 
 // Handler: GET /water/:room_id - ดูมิเตอร์น้ำล่าสุดของห้อง
 func getWaterMeterByRoom(c *gin.Context) {
+	_, err := middleware.GetCurrentUser(c)
+	if err != nil {
+		c.JSON(401, gin.H{"error": "กรุณา login ก่อน"})
+		return
+	}
+
 	roomID := c.Param("room_id")
 	var meter WaterMeter
 	db.Where("room_id = ?", roomID).Order("created_at desc").First(&meter)
@@ -122,6 +135,17 @@ func getWaterMeterByRoom(c *gin.Context) {
 
 // Handler: POST /water - บันทึกมิเตอร์น้ำใหม่
 func createWaterMeter(c *gin.Context) {
+	user, err := middleware.GetCurrentUser(c)
+	if err != nil {
+		c.JSON(401, gin.H{"error": "กรุณา login ก่อน"})
+		return
+	}
+
+	if user.Role != "admin" {
+		c.JSON(403, gin.H{"error": "เฉพาะ admin เท่านั้น"})
+		return
+	}
+
 	var meter WaterMeter
 	if err := c.ShouldBindJSON(&meter); err != nil {
 		c.JSON(400, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
@@ -172,17 +196,22 @@ func main() {
 	connectRabbitMQ()
 
 	r := gin.Default()
-	r.Use(cors.Default())
+	r.Use(cors.Default(), middleware.RequireUser())
 
 	// --- WATER METER ---
 	r.GET("/water", getAllWaterMeters)
 	r.GET("/water/:room_id", getWaterMeterByRoom)
-	r.POST("/water", createWaterMeter)
+
+	admin := r.Group("/")
+	admin.Use(middleware.RequireAdmin())
+	{
+		admin.POST("/water", createWaterMeter)
+	}
 
 	// --- ELECTRIC METER ---
 	r.GET("/electric", getAllElectricMeters)
 	r.GET("/electric/:room_id", getElectricMeterByRoom)
-	r.POST("/electric", createElectricMeter)
+	admin.POST("/electric", createElectricMeter)
 
 	log.Println("🚀 Meter Service is running on port 8083...")
 	r.Run(":8083")

@@ -11,6 +11,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"gorm.io/gorm"
 )
@@ -52,47 +53,56 @@ const (
 	electricRatePerUnit = 5.0  // ปรับเรทค่าไฟต่อหน่วยได้ตรงนี้
 )
 
-// ดึงข้อมูลห้องจาก room-service โดยใช้ RoomNumber = roomID
-func fetchRoom(roomID string) (*Room, error) {
-	resp, err := http.Get("http://room-service:8082/rooms/")
+// ดึงข้อมูลห้องจาก room-service โดยเรียก endpoint /:id ตรง ๆ
+// และส่งต่อ header X-User-Name / X-User-Role ไปด้วย
+func fetchRoom(c *gin.Context, roomID string) (*Room, error) {
+	url := fmt.Sprintf("http://room-service:8082/%s", roomID)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// ส่งต่อ identity ของ user ไปยัง service ปลายทาง
+	req.Header.Set("X-User-Name", c.GetHeader("X-User-Name"))
+	req.Header.Set("X-User-Role", c.GetHeader("X-User-Role"))
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("room-service status: %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	var room Room
+	if err := json.NewDecoder(resp.Body).Decode(&room); err != nil {
+		return nil, err
+	}
+
+	return &room, nil
+}
+
+// ดึงค่าน้ำล่าสุดจาก meter-service
+// และส่งต่อ header X-User-Name / X-User-Role ไปด้วย
+func fetchLatestWater(c *gin.Context, roomID string) (*WaterMeter, error) {
+	url := fmt.Sprintf("http://meter-service:8083/water/%s", roomID)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var rooms []Room
-	if err := json.Unmarshal(body, &rooms); err != nil {
-		return nil, err
-	}
+	req.Header.Set("X-User-Name", c.GetHeader("X-User-Name"))
+	req.Header.Set("X-User-Role", c.GetHeader("X-User-Role"))
 
-	for _, r := range rooms {
-		if r.RoomNumber == roomID {
-			return &r, nil
-		}
-	}
-
-	return nil, fmt.Errorf("room not found")
-}
-
-// ดึงค่าน้ำล่าสุดจาก meter-service
-func fetchLatestWater(roomID string) (*WaterMeter, error) {
-	url := fmt.Sprintf("http://meter-service:8083/meter/water/%s", roomID)
-	resp, err := http.Get(url)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("water meter status: %d", resp.StatusCode)
 	}
 
@@ -110,15 +120,24 @@ func fetchLatestWater(roomID string) (*WaterMeter, error) {
 }
 
 // ดึงค่าไฟล่าสุดจาก meter-service
-func fetchLatestElectric(roomID string) (*ElectricMeter, error) {
-	url := fmt.Sprintf("http://meter-service:8083/meter/electric/%s", roomID)
-	resp, err := http.Get(url)
+// และส่งต่อ header X-User-Name / X-User-Role ไปด้วย
+func fetchLatestElectric(c *gin.Context, roomID string) (*ElectricMeter, error) {
+	url := fmt.Sprintf("http://meter-service:8083/electric/%s", roomID)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("X-User-Name", c.GetHeader("X-User-Name"))
+	req.Header.Set("X-User-Role", c.GetHeader("X-User-Role"))
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("electric meter status: %d", resp.StatusCode)
 	}
 
@@ -220,6 +239,26 @@ func getAllBills(c *gin.Context) {
 // Handler: GET /Bill/:room_id - ดูบิลล่าสุดของห้องนั้น
 func getLatestBillByRoom(c *gin.Context) {
 	roomID := c.Param("room_id")
+
+	user, err := middleware.GetCurrentUser(c)
+	if err != nil {
+		c.JSON(401, gin.H{"error": "กรุณา login ก่อน"})
+		return
+	}
+
+	if user.Role != "admin" {
+		room, err := fetchRoom(c, roomID)
+		if err != nil {
+			c.JSON(404, gin.H{"error": "ไม่พบข้อมูลห้องสำหรับบิล"})
+			return
+		}
+
+		if room.TenantName != user.Username {
+			c.JSON(403, gin.H{"error": "ไม่มีสิทธิ์ดูบิลของห้องนี้"})
+			return
+		}
+	}
+
 	var bill Bill
 	if err := db.Where("room_id = ?", roomID).Order("created_at desc").First(&bill).Error; err != nil {
 		c.JSON(404, gin.H{"error": "ไม่พบข้อมูลบิลสำหรับห้องนี้"})
@@ -238,20 +277,20 @@ func createBill(c *gin.Context) {
 	bill.Month = time.Now().Format("2006-01")
 
 	// --- ดึงค่าเช่าจาก room-service ---
-	if room, err := fetchRoom(roomID); err == nil {
+	if room, err := fetchRoom(c, roomID); err == nil {
 		bill.RentPrice = room.Price
 	} else {
 		log.Println("⚠️ fetchRoom error:", err)
 	}
 
 	// --- ดึงค่าน้ำ/ค่าไฟจาก meter-service แล้วคำนวณราคา ---
-	if water, err := fetchLatestWater(roomID); err == nil {
+	if water, err := fetchLatestWater(c, roomID); err == nil {
 		bill.WaterPrice = water.Unit * waterRatePerUnit
 	} else {
 		log.Println("⚠️ fetchLatestWater error:", err)
 	}
 
-	if electric, err := fetchLatestElectric(roomID); err == nil {
+	if electric, err := fetchLatestElectric(c, roomID); err == nil {
 		bill.ElectricPrice = electric.Unit * electricRatePerUnit
 	} else {
 		log.Println("⚠️ fetchLatestElectric error:", err)
@@ -291,12 +330,17 @@ func main() {
 	connectRabbitMQ()
 
 	r := gin.Default()
-	r.Use(cors.Default())
+	r.Use(cors.Default(), middleware.RequireUser())
 
-	r.GET("/", getAllBills)
+	admin := r.Group("/")
+	admin.Use(middleware.RequireAdmin())
+	{
+		admin.GET("/", getAllBills)
+		admin.POST("/:room_id", createBill)
+		admin.PATCH("/:room_id", updateBill)
+	}
+
 	r.GET("/:room_id", getLatestBillByRoom)
-	r.POST("/:room_id", createBill)
-	r.PATCH("/:room_id", updateBill)
 
 	log.Println("🚀 Bill Service is running on port 8084...")
 	r.Run(":8084")

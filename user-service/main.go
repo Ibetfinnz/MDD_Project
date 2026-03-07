@@ -122,13 +122,13 @@ func main() {
 	r := gin.Default()
 
 	r.GET("/", serviceCheck)
-	r.GET("/users", getAllUsers)
 	r.POST("/login", login)
 
 	authorized := r.Group("/")
 	authorized.Use(middleware.JWTMiddleware(authConfig))
 	{
 		authorized.GET("/me", getCurrentUser)
+		authorized.GET("/users", getAllUsers)
 	}
 
 	log.Println("User service running on :8081")
