@@ -58,20 +58,28 @@ func authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// breakerTransport implements http.RoundTripper and wraps requests with a circuit breaker.
 type breakerTransport struct {
-	cb *gobreaker.CircuitBreaker
-	rt http.RoundTripper
+	name string
+	cb   *gobreaker.CircuitBreaker
+	rt   http.RoundTripper
 }
 
 func (b *breakerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	start := time.Now()
+	method := req.Method
+	urlStr := req.URL.String()
+
+	log.Printf("[Gateway] -> %s %s (service=%s)", method, urlStr, b.name)
+
 	result, err := b.cb.Execute(func() (interface{}, error) {
 		return b.rt.RoundTrip(req)
 	})
 	if err != nil {
+		log.Printf("[Gateway] ERROR calling service=%s %s %s: %v", b.name, method, urlStr, err)
 		return nil, err
 	}
 	resp, _ := result.(*http.Response)
+	log.Printf("[Gateway] <- %s %s (service=%s) status=%d duration=%s", method, urlStr, b.name, resp.StatusCode, time.Since(start))
 	return resp, nil
 }
 
@@ -94,7 +102,8 @@ func setupProxy(target, name string) http.Handler {
 
 	cb := newCircuitBreaker(name)
 	transport := &breakerTransport{
-		cb: cb,
+		name: name,
+		cb:   cb,
 		rt: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 		},
@@ -104,10 +113,12 @@ func setupProxy(target, name string) http.Handler {
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		// If the breaker is open, fail fast with 503
 		if err == gobreaker.ErrOpenState {
+			log.Printf("[Gateway] CIRCUIT OPEN for service=%s path=%s", name, r.URL.Path)
 			http.Error(w, "service temporarily unavailable (circuit breaker open)", http.StatusServiceUnavailable)
 			return
 		}
 		// default behavior: 502
+		log.Printf("[Gateway] BAD GATEWAY calling service=%s path=%s: %v", name, r.URL.Path, err)
 		http.Error(w, "bad gateway", http.StatusBadGateway)
 	}
 

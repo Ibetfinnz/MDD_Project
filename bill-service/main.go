@@ -56,6 +56,7 @@ const (
 // fetchRoom gets room info from room-service and forwards user headers
 func fetchRoom(c *gin.Context, roomID string) (*Room, error) {
 	url := fmt.Sprintf("http://room-service:8082/%s", roomID)
+	log.Printf("Bill Service: call room-service for room_id=%s", roomID)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -84,6 +85,7 @@ func fetchRoom(c *gin.Context, roomID string) (*Room, error) {
 // fetchLatestWater gets latest water meter from meter-service
 func fetchLatestWater(c *gin.Context, roomID string) (*WaterMeter, error) {
 	url := fmt.Sprintf("http://meter-service:8083/water/%s", roomID)
+	log.Printf("Bill Service: call meter-service for latest water room_id=%s", roomID)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -245,6 +247,7 @@ func getAllBills(c *gin.Context) {
 // GET /Bill/:room_id
 func getLatestBillByRoom(c *gin.Context) {
 	roomID := c.Param("room_id")
+	log.Printf("Bill Service: get latest bill for room_id=%s", roomID)
 
 	user, err := middleware.GetCurrentUser(c)
 	if err != nil {
@@ -282,6 +285,8 @@ func createBill(c *gin.Context) {
 	bill.RoomID = roomID
 	bill.Month = time.Now().Format("2006-01")
 
+	log.Printf("Bill Service: create bill for room_id=%s", roomID)
+
 	if room, err := fetchRoom(c, roomID); err == nil {
 		bill.RentPrice = room.Price
 	} else {
@@ -304,6 +309,8 @@ func createBill(c *gin.Context) {
 	if bill.Status == "" {
 		bill.Status = "Unpaid"
 	}
+
+	log.Printf("Bill Service: calculated bill for room_id=%s rent=%.2f water=%.2f electric=%.2f total=%.2f", bill.RoomID, bill.RentPrice, bill.WaterPrice, bill.ElectricPrice, bill.Total)
 
 	if err := db.Create(&bill).Error; err != nil {
 		c.JSON(500, gin.H{"error": "สร้างบิลไม่สำเร็จ"})

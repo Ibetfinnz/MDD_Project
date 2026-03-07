@@ -22,6 +22,7 @@ var db *gorm.DB
 
 // GET /rooms
 func getRooms(c *gin.Context) {
+	log.Println("Room Service: get all rooms")
 	var rooms []Room
 	db.Find(&rooms)
 	c.JSON(200, rooms)
@@ -30,6 +31,7 @@ func getRooms(c *gin.Context) {
 // GET /rooms/:id
 func getRoomByID(c *gin.Context) {
 	roomNumber := c.Param("id")
+	log.Printf("Room Service: get room room_number=%s", roomNumber)
 	var room Room
 	if err := db.Where("room_number = ?", roomNumber).First(&room).Error; err != nil {
 		c.JSON(404, gin.H{"error": "ไม่พบห้องพัก"})
@@ -47,6 +49,8 @@ func createRoom(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Room Service: create room room_number=%s price=%.2f", room.RoomNumber, room.Price)
+
 	db.Create(&room)
 	c.JSON(201, room)
 }
@@ -54,6 +58,7 @@ func createRoom(c *gin.Context) {
 // PATCH /rooms/:id
 func updateRoom(c *gin.Context) {
 	roomNumber := c.Param("id")
+	log.Printf("Room Service: update room room_number=%s", roomNumber)
 	var room Room
 	if err := db.Where("room_number = ?", roomNumber).First(&room).Error; err != nil {
 		c.JSON(404, gin.H{"error": "ไม่พบห้องพัก"})
@@ -72,6 +77,7 @@ func updateRoom(c *gin.Context) {
 // POST /rooms/:id/tenant
 func addTenantToRoom(c *gin.Context) {
 	roomNumber := c.Param("id")
+	log.Printf("Room Service: add tenant to room room_number=%s", roomNumber)
 	var room Room
 	if err := db.Where("room_number = ?", roomNumber).First(&room).Error; err != nil {
 		c.JSON(404, gin.H{"error": "ไม่พบห้องพัก"})

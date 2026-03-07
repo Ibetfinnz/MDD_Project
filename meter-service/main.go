@@ -127,6 +127,7 @@ func getAllWaterMeters(c *gin.Context) {
 		return
 	}
 
+	log.Println("Meter Service: get all water meters")
 	var meters []WaterMeter
 	db.Find(&meters)
 	c.JSON(200, meters)
@@ -141,6 +142,7 @@ func getWaterMeterByRoom(c *gin.Context) {
 	}
 
 	roomID := c.Param("room_id")
+	log.Printf("Meter Service: get water meter for room_id=%s", roomID)
 	var meter WaterMeter
 	db.Where("room_id = ?", roomID).Order("created_at desc").First(&meter)
 	c.JSON(200, meter)
@@ -164,6 +166,8 @@ func createWaterMeter(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
 		return
 	}
+
+	log.Printf("Meter Service: create water meter room_id=%s unit=%.2f by user=%s", meter.RoomID, meter.Unit, user.Username)
 	meter.Month = time.Now().Format("2006-01")
 	db.Create(&meter)
 
@@ -194,6 +198,8 @@ func createElectricMeter(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "ข้อมูลไม่ถูกต้อง"})
 		return
 	}
+
+	log.Printf("Meter Service: create electric meter room_id=%s unit=%.2f", meter.RoomID, meter.Unit)
 	meter.Month = time.Now().Format("2006-01")
 	db.Create(&meter)
 

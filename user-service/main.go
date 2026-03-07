@@ -54,11 +54,13 @@ func connectDB() {
 
 // Service check
 func serviceCheck(c *gin.Context) {
+	log.Println("User Service: health check")
 	c.String(200, "User Service Running")
 }
 
 // Get all users
 func getAllUsers(c *gin.Context) {
+	log.Println("User Service: get all users")
 	var users []User
 	if err := db.Select("username, role").Find(&users).Error; err != nil {
 		c.JSON(500, gin.H{
@@ -77,13 +79,17 @@ func login(c *gin.Context) {
 		return
 	}
 
+	log.Printf("User Service: login attempt for user=%s", input.Username)
+
 	var user User
 	if err := db.Where("username = ?", input.Username).First(&user).Error; err != nil {
+		log.Printf("User Service: login failed for user=%s (user not found)", input.Username)
 		c.JSON(401, gin.H{"error": "Invalid login"})
 		return
 	}
 
 	if user.Password != input.Password {
+		log.Printf("User Service: login failed for user=%s (wrong password)", input.Username)
 		c.JSON(401, gin.H{"error": "Invalid login"})
 		return
 	}
@@ -95,6 +101,8 @@ func login(c *gin.Context) {
 		})
 		return
 	}
+
+	log.Printf("User Service: login success for user=%s role=%s", user.Username, user.Role)
 
 	c.JSON(200, gin.H{
 		"message": "Login successful",
