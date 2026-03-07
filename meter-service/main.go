@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
@@ -210,22 +209,26 @@ func main() {
 	connectRabbitMQ()
 
 	r := gin.Default()
-	r.Use(cors.Default(), middleware.RequireUser())
 
-	// --- WATER METER ---
-	r.GET("/water", getAllWaterMeters)
-	r.GET("/water/:room_id", getWaterMeterByRoom)
-
-	admin := r.Group("/")
-	admin.Use(middleware.RequireAdmin())
+	authorized := r.Group("/")
+	authorized.Use(middleware.RequireUser())
 	{
-		admin.POST("/water", createWaterMeter)
-	}
+		// --- WATER METER --- (ต้อง login ทุกคน)
+		authorized.GET("/water", getAllWaterMeters)
+		authorized.GET("/water/:room_id", getWaterMeterByRoom)
 
-	// --- ELECTRIC METER ---
-	r.GET("/electric", getAllElectricMeters)
-	r.GET("/electric/:room_id", getElectricMeterByRoom)
-	admin.POST("/electric", createElectricMeter)
+		// --- ELECTRIC METER --- (ต้อง login ทุกคน)
+		authorized.GET("/electric", getAllElectricMeters)
+		authorized.GET("/electric/:room_id", getElectricMeterByRoom)
+
+		// กลุ่ม admin สำหรับสร้างข้อมูลมิเตอร์
+		admin := authorized.Group("/")
+		admin.Use(middleware.RequireAdmin())
+		{
+			admin.POST("/water", createWaterMeter)
+			admin.POST("/electric", createElectricMeter)
+		}
+	}
 
 	log.Println("🚀 Meter Service is running on port 8083...")
 	r.Run(":8083")

@@ -9,7 +9,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
@@ -63,9 +62,8 @@ func fetchRoom(c *gin.Context, roomID string) (*Room, error) {
 		return nil, err
 	}
 
-	// ส่งต่อ identity ของ user ไปยัง service ปลายทาง
-	req.Header.Set("X-User-Name", c.GetHeader("X-User-Name"))
-	req.Header.Set("X-User-Role", c.GetHeader("X-User-Role"))
+	// ส่งต่อ identity ของ user ไปยัง service ปลายทาง โดยใช้ helper กลางจาก middleware
+	middleware.AttachUserHeaders(c, req)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -94,8 +92,7 @@ func fetchLatestWater(c *gin.Context, roomID string) (*WaterMeter, error) {
 		return nil, err
 	}
 
-	req.Header.Set("X-User-Name", c.GetHeader("X-User-Name"))
-	req.Header.Set("X-User-Role", c.GetHeader("X-User-Role"))
+	middleware.AttachUserHeaders(c, req)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -129,8 +126,7 @@ func fetchLatestElectric(c *gin.Context, roomID string) (*ElectricMeter, error) 
 		return nil, err
 	}
 
-	req.Header.Set("X-User-Name", c.GetHeader("X-User-Name"))
-	req.Header.Set("X-User-Role", c.GetHeader("X-User-Role"))
+	middleware.AttachUserHeaders(c, req)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -345,17 +341,22 @@ func main() {
 	connectRabbitMQ()
 
 	r := gin.Default()
-	r.Use(cors.Default(), middleware.RequireUser())
 
-	admin := r.Group("/")
-	admin.Use(middleware.RequireAdmin())
+	authorized := r.Group("/")
+	authorized.Use(middleware.RequireUser())
 	{
-		admin.GET("/", getAllBills)
-		admin.POST("/:room_id", createBill)
-		admin.PATCH("/:room_id", updateBill)
-	}
+		// สำหรับ user ทั่วไป (เช่น tenant) ดูบิลของห้องตัวเองได้
+		authorized.GET("/:room_id", getLatestBillByRoom)
 
-	r.GET("/:room_id", getLatestBillByRoom)
+		// เฉพาะ admin ที่จัดการบิลทุกห้องได้
+		admin := authorized.Group("/")
+		admin.Use(middleware.RequireAdmin())
+		{
+			admin.GET("/", getAllBills)
+			admin.POST("/:room_id", createBill)
+			admin.PATCH("/:room_id", updateBill)
+		}
+	}
 
 	log.Println("🚀 Bill Service is running on port 8084...")
 	r.Run(":8084")

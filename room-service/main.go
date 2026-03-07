@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/Ibetfinnz/MDD_Project/auth/middleware"
@@ -139,18 +138,22 @@ func main() {
 
 	r := gin.Default()
 
-	// 3. ตั้งค่า CORS และบังคับให้ทุก request ต้องมี user (login แล้ว)
-	r.Use(cors.Default(), middleware.RequireUser())
-
-	r.GET("/", getRooms)
-	r.GET("/:id", getRoomByID)
-
-	admin := r.Group("/")
-	admin.Use(middleware.RequireAdmin())
+	// กลุ่มสำหรับทุก endpoint ที่ต้อง login แล้ว
+	authorized := r.Group("/")
+	authorized.Use(middleware.RequireUser())
 	{
-		admin.POST("/", createRoom)
-		admin.PATCH("/:id", updateRoom)
-		admin.POST("/:id/tenant", addTenantToRoom)
+		// สิทธิ์ของ user ทั่วไป (เช่น tenant) ดูรายการห้อง/รายละเอียดห้องได้
+		authorized.GET("/", getRooms)
+		authorized.GET("/:id", getRoomByID)
+
+		// กลุ่มที่ต้องเป็น admin เท่านั้น
+		admin := authorized.Group("/")
+		admin.Use(middleware.RequireAdmin())
+		{
+			admin.POST("/", createRoom)
+			admin.PATCH("/:id", updateRoom)
+			admin.POST("/:id/tenant", addTenantToRoom)
+		}
 	}
 
 	log.Println("🚀 Room Service is running on port 8082...")
