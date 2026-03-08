@@ -45,7 +45,9 @@ graph LR
     %% Bill Service calling other services directly (service-to-service)
     BS --> RS
     BS --> MS
+```
 
+```mermaid
 sequenceDiagram
     participant C as Client
     participant GW as Gateway
