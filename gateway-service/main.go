@@ -88,7 +88,7 @@ func newCircuitBreaker(name string) *gobreaker.CircuitBreaker {
 		Name:        name,
 		MaxRequests: 3,
 		Interval:    time.Minute,
-		Timeout:     5 * time.Second,
+		Timeout:     10 * time.Second,
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
 			failureRatio := float64(counts.TotalFailures) / float64(counts.Requests)
 			return counts.Requests >= 2 && failureRatio >= 1.0
