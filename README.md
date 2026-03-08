@@ -47,10 +47,6 @@ docker-compose up --build
 
 **สำคัญ:** ทุก Request จะต้องยิงไปที่พอร์ต `8080` (Gateway) เท่านั้น
 
-เพื่อให้ข้อมูลดูเป็นระเบียบและง่ายต่อการนำไปใส่ในไฟล์ `README.md` ของโปรเจกต์บน GitHub ผมสรุปข้อมูล API ทั้งหมดในรูปแบบตารางให้ตามนี้ครับ
-
----
-
 ## 🚀 API Documentation (Microservices via Gateway)
 
 **Base URL:** `http://localhost:8080` (API Gateway)
@@ -59,11 +55,21 @@ docker-compose up --build
 
 จัดการเรื่องการยืนยันตัวตนและข้อมูลผู้ใช้งาน (Login + JWT)
 
-| Feature | Method | Endpoint | Request Body (JSON) | Description |
-| --- | --- | --- | --- | --- |
-| **Login** | `POST` | `/login` | `{ "username": "admin", "password": "1234" }` | เข้าสู่ระบบและรับ JWT token สำหรับใช้งาน API อื่น |
-| **Get Current User** | `GET` | `/me` | - | ดึงข้อมูลผู้ใช้ที่ล็อกอินอยู่จาก JWT (ต้องส่ง `Authorization: Bearer &lt;token&gt;`) |
-| **Get All Users** | `GET` | `/users` | - | ดึงรายชื่อผู้ใช้ทั้งหมด (เฉพาะ `username`, `role`) |
+| Feature | Method | Endpoint | Description |
+| --- | --- | --- | --- |
+| **Login** | `POST` | `/login` | เข้าสู่ระบบและรับ JWT token สำหรับใช้งาน API อื่น |
+| **Get Current User** | `GET` | `/me` | ดึงข้อมูลผู้ใช้ที่ล็อกอินอยู่จาก JWT (ต้องส่ง `Authorization: Bearer &lt;token&gt;`) |
+| **Get All Users** | `GET` | `/users` | ดึงรายชื่อผู้ใช้ทั้งหมด (เฉพาะ `username`, `role`) |
+
+**Request Body ตัวอย่าง**
+
+- Login
+   ```json
+   {
+      "username": "admin",
+      "password": "1234"
+   }
+   ```
 
 #### 🔐 วิธีใช้ Token ตอนทดสอบ (Postman)
 
@@ -100,13 +106,38 @@ docker-compose up --build
 
 จัดการข้อมูลห้องพัก (ต้อง Login ก่อนใช้งาน ผ่าน Gateway)
 
-| Feature | Method | Endpoint | Request Body (JSON) | Role |
-| --- | --- | --- | --- | --- |
-| **Get All Rooms** | `GET` | `/api/rooms/` | - | Any (ต้อง Login) |
-| **Get Room Detail** | `GET` | `/api/rooms/:id` | - | Any (ต้อง Login) |
-| **Create Room** | `POST` | `/api/rooms/` | `{"room_number": "301", "price": 5000, "status": "Available"}` | **Admin** |
-| **Update Room** | `PATCH` | `/api/rooms/:id` | `{"price": 5500}` | **Admin** |
-| **Add Tenant** | `POST` | `/api/rooms/:id/tenant` | `{"tenant_name": "Somchai"}` | **Admin** |
+| Feature | Method | Endpoint | Description / Role |
+| --- | --- | --- | --- |
+| **Get All Rooms** | `GET` | `/api/rooms/` | Any (ต้อง Login) |
+| **Get Room Detail** | `GET` | `/api/rooms/:id` | Any (ต้อง Login) |
+| **Create Room** | `POST` | `/api/rooms/` | **Admin** สร้างห้องใหม่ |
+| **Update Room** | `PATCH` | `/api/rooms/:id` | **Admin** แก้ไขข้อมูลห้อง |
+| **Add Tenant** | `POST` | `/api/rooms/:id/tenant` | **Admin** เพิ่มข้อมูลผู้เช่าห้อง |
+
+**Request Body ตัวอย่าง**
+
+- Create Room
+   ```json
+   {
+      "room_number": "301",
+      "price": 5000,
+      "status": "Available"
+   }
+   ```
+
+- Update Room (ตัวอย่างแก้เฉพาะราคา)
+   ```json
+   {
+      "price": 5500
+   }
+   ```
+
+- Add Tenant
+   ```json
+   {
+      "tenant_name": "Somchai"
+   }
+   ```
 
 ---
 
@@ -114,12 +145,30 @@ docker-compose up --build
 
 บันทึกและดูประวัติการใช้ค่าน้ำ-ค่าไฟ (ต้อง Login ผ่าน Gateway)
 
-| Feature | Method | Endpoint | Request Body (JSON) | Role / Description |
-| --- | --- | --- | --- | --- |
-| **Record Water** | `POST` | `/api/meters/water` | `{"room_id": "101", "unit": 15.5}` | **Admin** บันทึกมิเตอร์น้ำล่าสุด |
-| **Record Electric** | `POST` | `/api/meters/electric` | `{"room_id": "101", "unit": 120.0}` | **Admin** บันทึกมิเตอร์ไฟล่าสุด |
-| **Water History** | `GET` | `/api/meters/water/:room_id` | - | ผู้ใช้ที่ Login แล้วดูหน่วยน้ำล่าสุดของห้องนั้น |
-| **Electric History** | `GET` | `/api/meters/electric/:room_id` | - | ผู้ใช้ที่ Login แล้วดูหน่วยไฟล่าสุดของห้องนั้น |
+| Feature | Method | Endpoint | Description / Role |
+| --- | --- | --- | --- |
+| **Record Water** | `POST` | `/api/meters/water` | **Admin** บันทึกมิเตอร์น้ำล่าสุด |
+| **Record Electric** | `POST` | `/api/meters/electric` | **Admin** บันทึกมิเตอร์ไฟล่าสุด |
+| **Water History** | `GET` | `/api/meters/water/:room_id` | ผู้ใช้ที่ Login แล้วดูหน่วยน้ำล่าสุดของห้องนั้น |
+| **Electric History** | `GET` | `/api/meters/electric/:room_id` | ผู้ใช้ที่ Login แล้วดูหน่วยไฟล่าสุดของห้องนั้น |
+
+**Request Body ตัวอย่าง**
+
+- Record Water
+   ```json
+   {
+      "room_id": "101",
+      "unit": 15.5
+   }
+   ```
+
+- Record Electric
+   ```json
+   {
+      "room_id": "101",
+      "unit": 120.0
+   }
+   ```
 
 ---
 
@@ -127,18 +176,29 @@ docker-compose up --build
 
 สรุปค่าใช้จ่ายประจำเดือน (ดึงข้อมูลจาก Room และ Meter Service ผ่าน Gateway)
 
-| Feature | Method | Endpoint | Request Body (JSON) | Role / Description |
-| --- | --- | --- | --- | --- |
-| **Create Bill** | `POST` | `/api/bills/:room_id` | `{"status": "Unpaid"}` | **Admin** สร้างบิลใหม่ ระบบคำนวณยอดรวมให้อัตโนมัติ |
-| **Get Latest Bill** | `GET` | `/api/bills/:room_id` | - | ผู้เช่าดูบิลของห้องตัวเอง หรือ Admin ดูได้ทุกห้อง |
-| **Get All Bills** | `GET` | `/api/bills/` | - | **Admin** ดูรายการบิลทั้งหมด |
-| **Update Status** | `PATCH` | `/api/bills/:room_id` | `{"water_price": 200}` | **Admin** อัปเดตสถานะการจ่ายเงิน |
+| Feature | Method | Endpoint | Description / Role |
+| --- | --- | --- | --- |
+| **Create Bill** | `POST` | `/api/bills/:room_id` | **Admin** สร้างบิลใหม่ ระบบคำนวณยอดรวมให้อัตโนมัติ |
+| **Get Latest Bill** | `GET` | `/api/bills/:room_id` | ผู้เช่าดูบิลของห้องตัวเอง หรือ Admin ดูได้ทุกห้อง |
+| **Get All Bills** | `GET` | `/api/bills/` | **Admin** ดูรายการบิลทั้งหมด |
+| **Update Status** | `PATCH` | `/api/bills/:room_id` | **Admin** อัปเดตสถานะการจ่ายเงินหรือปรับแก้ยอด |
 
----
+**Request Body ตัวอย่าง**
 
-> **Tip สำหรับ GitHub:** คุณสามารถก๊อปปี้ Markdown ด้านบนไปวางในไฟล์ `README.md` ได้เลยครับ ตารางจะแสดงผลอย่างสวยงามบนหน้าโปรเจกต์ของคุณ
+- Create Bill
+   ```json
+   {
+      "status": "Unpaid"
+   }
+   ```
 
-มีส่วนไหนของตารางที่อยากให้เพิ่มรายละเอียด เช่น **HTTP Status Code** (200, 201, 401) ไหมครับ?
+- Update Status (ตัวอย่างแก้ราคาค่าน้ำ หรือฟิลด์อื่น ๆ)
+   ```json
+   {
+      "water_price": 200
+   }
+   ```
+
 ## 🛠️ Technology Stack
 
 * **Language:** Go 1.x
