@@ -55,11 +55,11 @@ docker-compose up --build
 
 จัดการเรื่องการยืนยันตัวตนและข้อมูลผู้ใช้งาน (Login + JWT)
 
-| Feature | Method | Endpoint | Description |
+| Feature | Method | Endpoint | Description / Role |
 | --- | --- | --- | --- |
-| **Login** | `POST` | `/login` | เข้าสู่ระบบและรับ JWT token สำหรับใช้งาน API อื่น |
-| **Get Current User** | `GET` | `/me` | ดึงข้อมูลผู้ใช้ที่ล็อกอินอยู่จาก JWT (ต้องส่ง `Authorization: Bearer &lt;token&gt;`) |
-| **Get All Users** | `GET` | `/users` | ดึงรายชื่อผู้ใช้ทั้งหมด (เฉพาะ `username`, `role`) |
+| **Login** | `POST` | `/login` | เข้าสู่ระบบและรับโทเคนสำหรับใช้งาน API |
+| **Get Current User** | `GET` | `/me` | ดูข้อมูลผู้ใช้ที่กำลังล็อกอินอยู่ |
+| **Get All Users** | `GET` | `/users` | **Admin** ดูรายชื่อผู้ใช้ทั้งหมด |
 
 **Request Body ตัวอย่าง**
 
@@ -108,11 +108,11 @@ docker-compose up --build
 
 | Feature | Method | Endpoint | Description / Role |
 | --- | --- | --- | --- |
-| **Get All Rooms** | `GET` | `/api/rooms/` | Any (ต้อง Login) |
-| **Get Room Detail** | `GET` | `/api/rooms/:id` | Any (ต้อง Login) |
+| **Get All Rooms** | `GET` | `/api/rooms/` | ดูรายการห้องทั้งหมด |
+| **Get Room Detail** | `GET` | `/api/rooms/:id` | ดูรายละเอียดห้องตาม ID |
 | **Create Room** | `POST` | `/api/rooms/` | **Admin** สร้างห้องใหม่ |
 | **Update Room** | `PATCH` | `/api/rooms/:id` | **Admin** แก้ไขข้อมูลห้อง |
-| **Add Tenant** | `POST` | `/api/rooms/:id/tenant` | **Admin** เพิ่มข้อมูลผู้เช่าห้อง |
+| **Add Tenant** | `POST` | `/api/rooms/:id/tenant` | **Admin** เพิ่มผู้เช่าลงในห้อง |
 
 **Request Body ตัวอย่าง**
 
@@ -147,10 +147,10 @@ docker-compose up --build
 
 | Feature | Method | Endpoint | Description / Role |
 | --- | --- | --- | --- |
-| **Record Water** | `POST` | `/api/meters/water` | **Admin** บันทึกมิเตอร์น้ำล่าสุด |
-| **Record Electric** | `POST` | `/api/meters/electric` | **Admin** บันทึกมิเตอร์ไฟล่าสุด |
-| **Water History** | `GET` | `/api/meters/water/:room_id` | ผู้ใช้ที่ Login แล้วดูหน่วยน้ำล่าสุดของห้องนั้น |
-| **Electric History** | `GET` | `/api/meters/electric/:room_id` | ผู้ใช้ที่ Login แล้วดูหน่วยไฟล่าสุดของห้องนั้น |
+| **Record Water** | `POST` | `/api/meters/water` | **Admin** บันทึกค่ามิเตอร์น้ำ |
+| **Record Electric** | `POST` | `/api/meters/electric` | **Admin** บันทึกค่ามิเตอร์ไฟ |
+| **Water History** | `GET` | `/api/meters/water/:room_id` | ดูประวัติการใช้น้ำของห้อง |
+| **Electric History** | `GET` | `/api/meters/electric/:room_id` | ดูประวัติการใช้ไฟของห้อง |
 
 **Request Body ตัวอย่าง**
 
@@ -178,10 +178,10 @@ docker-compose up --build
 
 | Feature | Method | Endpoint | Description / Role |
 | --- | --- | --- | --- |
-| **Create Bill** | `POST` | `/api/bills/:room_id` | **Admin** สร้างบิลใหม่ ระบบคำนวณยอดรวมให้อัตโนมัติ |
-| **Get Latest Bill** | `GET` | `/api/bills/:room_id` | ผู้เช่าดูบิลของห้องตัวเอง หรือ Admin ดูได้ทุกห้อง |
+| **Create Bill** | `POST` | `/api/bills/:room_id` | **Admin** สร้างบิลค่าใช้จ่ายห้อง |
+| **Get Latest Bill** | `GET` | `/api/bills/:room_id` | ดูบิลล่าสุดของห้อง |
 | **Get All Bills** | `GET` | `/api/bills/` | **Admin** ดูรายการบิลทั้งหมด |
-| **Update Status** | `PATCH` | `/api/bills/:room_id` | **Admin** อัปเดตสถานะการจ่ายเงินหรือปรับแก้ยอด |
+| **Update Status** | `PATCH` | `/api/bills/:room_id` | **Admin** แก้ไขข้อมูลหรือสถานะบิล |
 
 **Request Body ตัวอย่าง**
 
