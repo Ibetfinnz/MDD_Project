@@ -112,12 +112,15 @@ func login(c *gin.Context) {
 
 // Get current user info from JWT
 func getCurrentUser(c *gin.Context) {
-	username, _ := c.Get("username")
-	role, _ := c.Get("role")
+	user, err := middleware.GetCurrentUser(c)
+	if err != nil {
+		c.JSON(401, gin.H{"error": "unauthorized"})
+		return
+	}
 
 	c.JSON(200, gin.H{
-		"username": username,
-		"role":     role,
+		"username": user.Username,
+		"role":     user.Role,
 	})
 }
 
@@ -131,11 +134,16 @@ func main() {
 	r.GET("/", serviceCheck)
 	r.POST("/login", login)
 
-	authorized := r.Group("/")
-	authorized.Use(middleware.JWTMiddleware(authConfig))
+	userGroup := r.Group("/")
+	userGroup.Use(middleware.RequireUser())
 	{
-		authorized.GET("/me", getCurrentUser)
-		authorized.GET("/users", getAllUsers)
+		userGroup.GET("/me", getCurrentUser)
+	}
+
+	adminGroup := r.Group("/")
+	adminGroup.Use(middleware.RequireAdmin())
+	{
+		adminGroup.GET("/users", getAllUsers)
 	}
 
 	log.Println("User service running on :8081")
