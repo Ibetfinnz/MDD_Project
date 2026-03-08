@@ -81,3 +81,47 @@ sequenceDiagram
     MS-->>BS: หน่วยไฟล่าสุด
     BS->>BS: คำนวณยอดบิลและบันทึกลง bill.db
     BS-->>C: ส่งข้อมูลบิลกลับ
+
+```
+
+```mermaid
+classDiagram
+    class User {
+      +string Username
+      +string Password
+      +string Role
+    }
+
+    class Room {
+      +string RoomNumber
+      +float Price
+      +string Status
+      +string TenantName
+    }
+
+    class WaterMeter {
+      +string RoomID
+      +float Unit
+      +string Month
+    }
+
+    class ElectricMeter {
+      +string RoomID
+      +float Unit
+      +string Month
+    }
+
+    class Bill {
+      +string RoomID
+      +float RentPrice
+      +float WaterPrice
+      +float ElectricPrice
+      +float Total
+      +string Month
+      +string Status
+    }
+
+    Room "1" --> "*" WaterMeter : usage
+    Room "1" --> "*" ElectricMeter : usage
+    Room "1" --> "*" Bill : billed for
+    User "1" --> "*" Room : tenant (by name/role)
