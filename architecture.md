@@ -46,15 +46,6 @@ graph LR
     BS --> RS
     BS --> MS
 
-    %% Meter Service -> RabbitMQ
-    MS --> RQ
-    MS --> QW
-    MS --> QE
-
-    %% RabbitMQ -> Bill Service
-    RQ --> BS
-    QW --> BS
-    QE --> BS
 ```
 
 ```mermaid
