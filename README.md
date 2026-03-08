@@ -132,7 +132,7 @@ docker-compose up --build
 | **Create Bill** | `POST` | `/api/bills/:room_id` | `{"status": "Unpaid"}` | **Admin** สร้างบิลใหม่ ระบบคำนวณยอดรวมให้อัตโนมัติ |
 | **Get Latest Bill** | `GET` | `/api/bills/:room_id` | - | ผู้เช่าดูบิลของห้องตัวเอง หรือ Admin ดูได้ทุกห้อง |
 | **Get All Bills** | `GET` | `/api/bills/` | - | **Admin** ดูรายการบิลทั้งหมด |
-| **Update Status** | `PATCH` | `/api/bills/:room_id` | `{"status": "Paid"}` | **Admin** อัปเดตสถานะการจ่ายเงิน |
+| **Update Status** | `PATCH` | `/api/bills/:room_id` | `{"water_price": 200}` | **Admin** อัปเดตสถานะการจ่ายเงิน |
 
 ---
 
