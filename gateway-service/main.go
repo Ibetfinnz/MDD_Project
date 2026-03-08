@@ -86,9 +86,13 @@ func (b *breakerTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 func newCircuitBreaker(name string) *gobreaker.CircuitBreaker {
 	settings := gobreaker.Settings{
 		Name:        name,
-		MaxRequests: 5, // in HALF-OPEN state
-		Interval:    60 * time.Second,
-		Timeout:     10 * time.Second,
+		MaxRequests: 3,
+		Interval:    time.Minute,
+		Timeout:     5 * time.Second,
+		ReadyToTrip: func(counts gobreaker.Counts) bool {
+			failureRatio := float64(counts.TotalFailures) / float64(counts.Requests)
+			return counts.Requests >= 2 && failureRatio >= 1.0
+		},
 	}
 	return gobreaker.NewCircuitBreaker(settings)
 }
