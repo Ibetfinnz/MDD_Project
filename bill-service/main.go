@@ -287,23 +287,29 @@ func createBill(c *gin.Context) {
 
 	log.Printf("Bill Service: create bill for room_id=%s", roomID)
 
-	if room, err := fetchRoom(c, roomID); err == nil {
-		bill.RentPrice = room.Price
-	} else {
-		log.Println("⚠️ fetchRoom error:", err)
+	room, err := fetchRoom(c, roomID)
+	if err != nil {
+		log.Println("fetchRoom error:", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ไม่สามารถสร้างบิลได้ เนื่องจากบริการห้องไม่พร้อมใช้งาน"})
+		return
 	}
+	bill.RentPrice = room.Price
 
-	if water, err := fetchLatestWater(c, roomID); err == nil {
-		bill.WaterPrice = water.Unit * waterRatePerUnit
-	} else {
-		log.Println("⚠️ fetchLatestWater error:", err)
+	water, err := fetchLatestWater(c, roomID)
+	if err != nil {
+		log.Println("fetchLatestWater error:", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ไม่สามารถสร้างบิลได้ เนื่องจากบริการมิเตอร์น้ำไม่พร้อมใช้งาน"})
+		return
 	}
+	bill.WaterPrice = water.Unit * waterRatePerUnit
 
-	if electric, err := fetchLatestElectric(c, roomID); err == nil {
-		bill.ElectricPrice = electric.Unit * electricRatePerUnit
-	} else {
-		log.Println("⚠️ fetchLatestElectric error:", err)
+	electric, err := fetchLatestElectric(c, roomID)
+	if err != nil {
+		log.Println("fetchLatestElectric error:", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ไม่สามารถสร้างบิลได้ เนื่องจากบริการมิเตอร์ไฟไม่พร้อมใช้งาน"})
+		return
 	}
+	bill.ElectricPrice = electric.Unit * electricRatePerUnit
 
 	bill.Total = bill.RentPrice + bill.WaterPrice + bill.ElectricPrice
 	if bill.Status == "" {
