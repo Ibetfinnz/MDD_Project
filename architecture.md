@@ -1,3 +1,4 @@
+```mermaid
 graph LR
     subgraph ClientSide[Client]
         C[Client / Frontend]
